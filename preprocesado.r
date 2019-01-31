@@ -44,9 +44,14 @@ vector_claves_outliers_IQR_en_alguna_columna <- function(datos, coef=1.5){
 
 computeOutliers <- function(data, type='remove'){
   outliers <- unlist(vector_claves_outliers_IQR_en_alguna_columna(data))
-  print(outliers)
   if (type == 'remove'){
     index.to.keep <- setdiff(c(1:nrow(data)),outliers)
     return (data[index.to.keep,])
   }
+  else if(type == 'knn'){
+    data[outliers,] <- rep(NA,ncol(data))
+    return(computeMissingValues(data,type='knn'))
+  }
+  
+  return(data)
 }
