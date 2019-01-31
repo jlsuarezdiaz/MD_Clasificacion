@@ -1,6 +1,7 @@
 library(Hmisc)
 library(mice)
 require(DMwR) # KNN imp
+library(mvoutlier)  
 set.seed(1234)
 
 
@@ -23,13 +24,29 @@ computeMissingValues <- function(data, type='remove',k=2) {
   return(data)
 }
 
-data <- read.csv("./train.csv", header=TRUE, na.strings="?")
 
-# CENTER AND SCALE DATA
-require(caret)
-n <- length(data)
-valoresPreprocesados <- caret::preProcess(data[1:n-1],method=c("center" ,"scale") )
-data.scaled <- predict(valoresPreprocesados,data[1:n-1])
-data.scaled <- cbind(data.scaled,C=data$C)
 
-train.data <- computeMissingValues(data.scaled,type='knn')
+findOutliers <- function(col,coef){ 
+  cuartil.primero = quantile(col,0.25)
+  cuartil.tercero = quantile(col,0.75)
+  iqr <- cuartil.tercero - cuartil.primero
+  
+  extremo.superior.outlier <- cuartil.tercero + coef * iqr
+  extremo.inferior.outlier <- cuartil.primero - coef * iqr
+  
+  return( which((col > extremo.superior.outlier) | (col < extremo.inferior.outlier),arr.ind=TRUE))
+}
+
+vector_claves_outliers_IQR_en_alguna_columna <- function(datos, coef=1.5){
+  vector.es.outlier <- sapply(datos[1:ncol(datos)], findOutliers,coef)
+  vector.es.outlier
+}
+
+computeOutliers <- function(data, type='remove'){
+  outliers <- unlist(vector_claves_outliers_IQR_en_alguna_columna(data))
+  print(outliers)
+  if (type == 'remove'){
+    index.to.keep <- setdiff(c(1:nrow(data)),outliers)
+    return (data[index.to.keep,])
+  }
+}
