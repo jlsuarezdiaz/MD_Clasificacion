@@ -3,6 +3,10 @@ library(mice)
 require(DMwR) # KNN imp
 library(mvoutlier)  
 library(randomForest)
+library(FSelector)
+library(Boruta)
+library(NoiseFiltersR)
+
 set.seed(1234)
 
 # MISSING DATA
@@ -94,11 +98,11 @@ computeOutliers <- function(data, type='remove', k=2){
   outliers <- vector_claves_outliers_IQR_en_alguna_columna(data)
 
   if (type == 'remove'){
-    index.to.keep <- setdiff(c(1:nrow(data)),outliers)
+    index.to.keep <- setdiff(c(1:nrow(data)),unlist(outliers))
     return (data[index.to.keep,])
   }
   else if(type == 'knn'){
-    data[outliers,] <- rep(NA,ncol(data))
+    data[unlist(outliers),] <- rep(NA,ncol(data))
     return(computeMissingValues(data,type='knn',k=k))
   }
   else if(type == 'median'){
@@ -118,4 +122,96 @@ computeOutliers <- function(data, type='remove', k=2){
   }
   
   return(data) # es necesario?
+}
+
+featureSelection <- function(method,number, data, Class){
+  if (method == 'chi'){
+    weights <- FSelector::chi.squared(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'lc'){
+    weights <- FSelector::linear.correlation(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'rc'){
+    weights <- FSelector::rank.correlation(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'ig'){
+    weigths <- FSelector::information.gain(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'gr'){
+    weigths <- FSelector::gain.ratio(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)    
+  }
+  else if(method == 'su'){
+    weigths <- FSelector::symmetrical.uncertainty(Class~., data)
+    subset <- FSelector::cutoff.k(weights,number)     
+  }
+  else if(method == 'oneR'){
+    weights <- FSelector::oneR(Class~.,data)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'relief'){
+    weights <- FSelector::relief(Class~., data, neighbours.count = 5, sample.size = 20)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  else if(method == 'cfs'){
+    subset <- FSelector::cfs(Class~.,data)
+  }
+  else if(method == 'cons'){
+    subset <- FSelector::consistency(Class~.,data)
+  }
+  else if(method == 'rfi'){
+    weights <- FSelector::random.forest.importance(Class~.,data, importance.type = 1)
+    subset <- FSelector::cutoff.k(weights,number)
+  }
+  
+  return(subset)
+}
+
+removeHighCorrelationAttributes <- function(data,umbral){
+  tmp <- cor(data)
+  tmp[!lower.tri(tmp)] <-0
+  data.new <- data[,!apply(tmp,2,function(x) any(x > umbral))]
+  return(data.new)
+}
+
+computeImportanceAttributes <- function(datos,Class){
+  set.seed(7)
+  control <- caret::trainControl(method = "repeatedcv", number = 10, repeats = 5)
+  modelo <- caret::train(Class~.,data = datos, methdod = "lvq", trControl = control)
+  importance <- caret::varImp(modelo, scale = FALSE)
+  
+  return(importance)
+}
+
+rankingLearningRandomForest <- function(data,Class){
+  set.seed(7)
+  control <- caret::rfeControl(functions = rfFuncs, method = "cv", number = 10)
+  results <- caret::rfe(data,Class, sizes=c(0:1), rfeControl = control)
+  print(results)
+  return(predictors(results))
+}
+
+applyBoruta <- function(datos,Class){
+  Boruta.data <- Boruta(Class~.,data = datos, doTrace = 2)
+  print(Boruta.data)
+  print(Boruta.data$finalDecision)
+  return(Boruta.data)
+}
+
+RandomForestAndBoruta <- function(datos,Class){
+  Boruta.data = applyBoruta(datos,Class)
+  model1 <- randomForest(Class~., data = datos)
+  model2 <- randomForest(datos[, getSelectedAttributes(Boruta.data)],Class)
+  print(model2)
+  plot(Boruta.dara)
+}
+
+filterNoiseData <- function(data){
+  out.data <- NoiseFiltersR::IPF(data, nfolds = 5, consensus = FALSE, p = 0.01, s = 3, y = 0.5)
+  data.clean = out.data$cleanData
+  return (data.clean)
 }
