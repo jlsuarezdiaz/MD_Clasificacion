@@ -22,12 +22,27 @@ fillNAMedian <- function(col){
 
 changeOutliersValue <- function(outliers,data,type = 'median'){
   i = 1
+  j = 1
+  
   n = ncol(data)
-  # no funciona bien, siguen saliendo outliers.
-  while(i <= n){
-    outliers_columna = outliers[[i]]
-    data[outliers_columna,i] = mean(data[,i], na.rm = TRUE)
-    i = i +1
+  
+  while(j <= n){
+    outliers_columna = outliers[[j]]
+    m = length(outliers_columna)
+    
+    while(i <= m){
+      if (type == 'median'){
+        data[outliers_columna[i],j] = median(data[,j], na.rm = TRUE)
+      }
+      else if(type == 'mean'){
+        data[outliers_columna[i],j] = mean(data[,j], na.rm = TRUE)
+      }
+      
+      i = i +1
+    }
+    
+    i = 1
+    j = j + 1
   }
   
   return(data)
@@ -54,6 +69,9 @@ computeMissingValues <- function(data, type='remove',k=2) {
     else if(type == 'mice'){
       tempData <- mice(data, m = 5, meth="pmm", maxit = 50, seed = 500)
       data = complete(tempData,1)
+    }
+    else if(type =='rob'){
+      data <- robCompositions::impKNNa(data, primitive = TRUE)
     }
   }
   return(data)
@@ -94,8 +112,8 @@ vector_claves_outliers_IQR_en_alguna_columna <- function(datos, coef=1.5){
 }
 
 
-computeOutliers <- function(data, type='remove', k=2){
-  outliers <- vector_claves_outliers_IQR_en_alguna_columna(data)
+computeOutliers <- function(data, type='remove', k=2, coef = 1.5){
+  outliers <- vector_claves_outliers_IQR_en_alguna_columna(data, coef)
 
   if (type == 'remove'){
     index.to.keep <- setdiff(c(1:nrow(data)),unlist(outliers))
@@ -109,16 +127,15 @@ computeOutliers <- function(data, type='remove', k=2){
     return(changeOutliersValue(outliers,data))
   }
   else if(type == 'mean'){
-    data[outliers,] <- rep(NA,ncol(data))
-    return(computeMissingValues(data,type='mean',k=k))
+    return(changeOutliersValue(outliers,data, type = 'mean'))
   }
   else if(type == 'rf'){
     data[outliers,] <- rep(NA,ncol(data))
-    return(computeMissingValues(data,type='rf',k=k))
+    return(computeMissingValues(data,type='rf'))
   }
   else if(type == 'mice'){
     data[outliers,] <- rep(NA,ncol(data))
-    return(computeMissingValues(data,type='mice',k=k))
+    return(computeMissingValues(data,type='mice'))
   }
   
   return(data) # es necesario?
@@ -187,10 +204,10 @@ computeImportanceAttributes <- function(datos,Class){
   return(importance)
 }
 
-rankingLearningRandomForest <- function(data,Class){
+rankingLearningRandomForest <- function(data,Class,numeroVars){
   set.seed(7)
-  control <- caret::rfeControl(functions = rfFuncs, method = "cv", number = 10)
-  results <- caret::rfe(data,Class, sizes=c(0:1), rfeControl = control)
+  control <- caret::rfeControl(functions = rfFuncs, method = "cv", number = 5)
+  results <- caret::rfe(data,Class, sizes=numeroVars, rfeControl = control, metric = "Accuracy")
   print(results)
   return(predictors(results))
 }
@@ -202,16 +219,32 @@ applyBoruta <- function(datos,Class){
   return(Boruta.data)
 }
 
+# datos sin la clase para BORUTA
 RandomForestAndBoruta <- function(datos,Class){
+  print("Aplicamos Boruta")
   Boruta.data = applyBoruta(datos,Class)
+  print("Aplicamos random forest sobre los datos")
   model1 <- randomForest(Class~., data = datos)
+  print(model1)
+  
+  print("Aplicamos random forest sobre los mejores atributos dadaos por boruta")
   model2 <- randomForest(datos[, getSelectedAttributes(Boruta.data)],Class)
   print(model2)
-  plot(Boruta.dara)
+
+  plot(Boruta.data)
 }
 
 filterNoiseData <- function(data){
-  out.data <- NoiseFiltersR::IPF(data, nfolds = 5, consensus = FALSE, p = 0.01, s = 3, y = 0.5)
+  set.seed(7)
+  copia = data
+  copia[,ncol(data)] = as.factor(copia[,ncol(data)])
+  out.data <- NoiseFiltersR::IPF(copia, nfolds = 5, consensus = FALSE, p = 0.01, s = 3, y = 0.5)
   data.clean = out.data$cleanData
   return (data.clean)
+}
+
+# 1 ->  CAIM, 2 -> CACC, 3 -> AMEVA
+discretization <- function(data, method){
+  cm <- discretization::disc.Topdown(data,method)
+  return(cm$Disc.data)
 }
