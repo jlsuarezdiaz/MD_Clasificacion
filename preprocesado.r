@@ -6,7 +6,7 @@ library(randomForest)
 library(FSelector)
 library(Boruta)
 library(NoiseFiltersR)
-
+require(unbalanced)
 set.seed(1234)
 
 # MISSING DATA
@@ -89,7 +89,6 @@ preProcessData <- function(data,test){
   # realizamos el mismo preprocesado para el test según la media y varianza de cada columna del train
   means = apply(data[1:n-1],2,mean,na.rm=TRUE)
   sds = apply(data[1:n-1],2,sd,na.rm=TRUE)
-  print(sds)
   test.scaled = as.data.frame(scale(test, center = means, scale = sds))
   
   list(data.scaled,test.scaled)
@@ -196,6 +195,15 @@ removeHighCorrelationAttributes <- function(data,umbral){
   return(data.new)
 }
 
+
+# Borra las columnas que están menos relacionadas con la salida
+removeLowCorrelationAttributes <- function(data,umbral=0.05){
+  tmp <- data.frame(cor(data))
+  col.index <- which(abs(tmp$C) < umbral)
+  data.new <- data[,which( !(c(1:ncol(data)) %in% col.index))]
+  return(data.new)
+}
+
 computeImportanceAttributes <- function(datos,Class){
   set.seed(7)
   control <- caret::trainControl(method = "repeatedcv", number = 10, repeats = 5)
@@ -250,3 +258,11 @@ discretization <- function(data, method){
   return(cm$Disc.data)
 }
 
+# Solver unalance problem. 
+# type in [ubOver, ubUnder, ubSMOTE, ubOSS, ubCNN, ubENN, ubNCL, ubTomek]
+solveUnbalance <- function(data,type='ubOver'){
+  n <- ncol(data)
+  new.data <- ubBalance(data[,1:n-1], as.factor(data$C), type=type, positive=1)
+  balanced <- cbind(new.data$X,C=new.data$Y)
+  return (balanced)
+}
