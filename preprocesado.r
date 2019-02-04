@@ -87,8 +87,9 @@ preProcessData <- function(data,test){
   data.scaled <- cbind(data.scaled,C=data$C)
   
   # realizamos el mismo preprocesado para el test según la media y varianza de cada columna del train
-  means = apply(data[1:n-1],2,mean)
-  sds = apply(data[1:n-1],2,sd)
+  means = apply(data[1:n-1],2,mean,na.rm=TRUE)
+  sds = apply(data[1:n-1],2,sd,na.rm=TRUE)
+  print(sds)
   test.scaled = as.data.frame(scale(test, center = means, scale = sds))
   
   list(data.scaled,test.scaled)
@@ -248,3 +249,4 @@ discretization <- function(data, method){
   cm <- discretization::disc.Topdown(data,method)
   return(cm$Disc.data)
 }
+
