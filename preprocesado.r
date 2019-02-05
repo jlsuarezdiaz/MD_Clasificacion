@@ -37,6 +37,9 @@ changeOutliersValue <- function(outliers,data,type = 'median'){
       else if(type == 'mean'){
         data[outliers_columna[i],j] = mean(data[,j], na.rm = TRUE)
       }
+      else {
+        data[outliers_columna[i],j] = NA
+      }
       
       i = i +1
     }
@@ -50,6 +53,7 @@ changeOutliersValue <- function(outliers,data,type = 'median'){
 
 computeMissingValues <- function(data, type='remove',k=2) {
   if(anyNA(data)){
+    print(1)
     if (type == 'remove') data <- data[complete.cases(data),]
     else if (type == 'mean'){
       data[,1:dim(data)[2]] <- sapply(data[,1:dim(data)[2]], fillNAMean)
@@ -120,8 +124,8 @@ computeOutliers <- function(data, type='remove', k=2, coef = 1.5){
     return (data[index.to.keep,])
   }
   else if(type == 'knn'){
-    data[unlist(outliers),] <- rep(NA,ncol(data))
-    return(computeMissingValues(data,type='knn',k=k))
+    data.with.na <- changeOutliersValue(outliers,data, type='knn')
+    return(computeMissingValues(data.with.na,type='knn',k=k))
   }
   else if(type == 'median'){
     return(changeOutliersValue(outliers,data))
@@ -130,11 +134,11 @@ computeOutliers <- function(data, type='remove', k=2, coef = 1.5){
     return(changeOutliersValue(outliers,data, type = 'mean'))
   }
   else if(type == 'rf'){
-    data[outliers,] <- rep(NA,ncol(data))
+    data.with.na <- changeOutliersValue(outliers,data, type='rf')
     return(computeMissingValues(data,type='rf'))
   }
   else if(type == 'mice'){
-    data[outliers,] <- rep(NA,ncol(data))
+    data.with.na <- changeOutliersValue(outliers,data, type='mice')
     return(computeMissingValues(data,type='mice'))
   }
   
@@ -266,3 +270,4 @@ solveUnbalance <- function(data,type='ubOver'){
   balanced <- cbind(new.data$X,C=new.data$Y)
   return (balanced)
 }
+
