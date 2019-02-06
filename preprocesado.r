@@ -47,13 +47,11 @@ changeOutliersValue <- function(outliers,data,type = 'median'){
     i = 1
     j = j + 1
   }
-  
   return(data)
 }
 
 computeMissingValues <- function(data, type='remove',k=2) {
   if(anyNA(data)){
-    print(1)
     if (type == 'remove') data <- data[complete.cases(data),]
     else if (type == 'mean'){
       data[,1:dim(data)[2]] <- sapply(data[,1:dim(data)[2]], fillNAMean)
@@ -65,7 +63,7 @@ computeMissingValues <- function(data, type='remove',k=2) {
       data <- knnImputation(data,k=k)
     }
     else if(type == 'rf'){
-      data <- rfImpute(data[1:length(data)-1], data[,length(data)], iter = 5, tree = 100)
+      data <- rfImpute(data[1:length(data)-1], as.factor(data[,length(data)]), iter = 5, tree = 100)
       class = data[,1]
       data = data[,-1]
       data = cbind(data, C = class)
@@ -99,7 +97,7 @@ preProcessData <- function(data,test){
 }
 
 
-findOutliers <- function(col,coef = 1.5){ 
+findOutliers <- function(col,coef){ 
   cuartil.primero = quantile(col,0.25)
   cuartil.tercero = quantile(col,0.75)
   iqr <- cuartil.tercero - cuartil.primero
@@ -107,18 +105,17 @@ findOutliers <- function(col,coef = 1.5){
   extremo.superior.outlier <- cuartil.tercero + coef * iqr
   extremo.inferior.outlier <- cuartil.primero - coef * iqr
   
-  return( which((col > extremo.superior.outlier) | (col < extremo.inferior.outlier),arr.ind=TRUE))
+  return( which((col > extremo.superior.outlier) | (col < extremo.inferior.outlier)))
 }
 
 vector_claves_outliers_IQR_en_alguna_columna <- function(datos, coef=1.5){
-  vector.es.outlier.normal <- sapply(datos[1:ncol(datos)], findOutliers,coef)
-  vector.es.outlier.normal
+  vector.es.outlier <- sapply(datos[1:ncol(datos)], findOutliers,coef)
+  vector.es.outlier
 }
 
 
 computeOutliers <- function(data, type='remove', k=2, coef = 1.5){
   outliers <- vector_claves_outliers_IQR_en_alguna_columna(data, coef)
-
   if (type == 'remove'){
     index.to.keep <- setdiff(c(1:nrow(data)),unlist(outliers))
     return (data[index.to.keep,])
@@ -135,7 +132,7 @@ computeOutliers <- function(data, type='remove', k=2, coef = 1.5){
   }
   else if(type == 'rf'){
     data.with.na <- changeOutliersValue(outliers,data, type='rf')
-    return(computeMissingValues(data,type='rf'))
+    return(computeMissingValues(data.with.na,type='rf'))
   }
   else if(type == 'mice'){
     data.with.na <- changeOutliersValue(outliers,data, type='mice')
