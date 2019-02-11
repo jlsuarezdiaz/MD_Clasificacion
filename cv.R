@@ -11,6 +11,6 @@ cross_validation_fold <- function(fold, indexes, dataset, funcion.train.predict)
   train.inds <- which(indexes==fold)
   train <- dataset[train.inds,]
   test <- na.omit(dataset[-train.inds,])
-  ypred <- funcion.train.predict(train, test)
+  ypred <- funcion.train.predict(train, test[,-ncol(test)])
   mean(ypred==test$C)
 }

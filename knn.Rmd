@@ -189,11 +189,20 @@ ggplot(pca.plano, aes(x=PC1, y=PC2, col=C)) + geom_point()
 ```
 
 ```{r}
+createSubmission <- function(pred, filename){
+  sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
+  write.csv(sub, paste0("subs-knn/",filename), row.names = F)
+  sub
+}
+```
+
+```{r}
 # Probando validación cruzada
+set.seed(28)
 funcion.train.predict <- function(train, test){
   # Train
   outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test.por.la.cara <- which(apply(test[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
   indices.nas.train <- which(has.na(train))
   knn.model <- train(C ~ ., train[-c(outliers.train.por.la.cara, indices.nas.train),], method="knn", preProcess = c("center", "scale"))
   
@@ -209,9 +218,10 @@ cross_validation(train, funcion.train.predict)
 ```{r}
 ## SUBIDA 1
 
-
 set.seed(28)
+sub.prueba <- funcion.train.predict(train, test)
 
+sub <- createSubmission(sub.prueba, "prueba") # 0.90045 ??????????
 ```
 
 
