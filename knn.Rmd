@@ -1,0 +1,232 @@
+---
+title: "knn"
+author: "Juan Luis Suárez Díaz"
+date: "10 de febrero de 2019"
+output: pdf_document
+---
+
+```{r}
+train <- read.csv("train.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+train$C <- as.factor(train$C)
+test <- read.csv("test.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+sample <- read.csv("sampleSubmission.csv")
+
+## BIBLIOTECAS
+
+library(ggplot2)
+library(caret)
+library(RKEEL)
+# library(rDML) # Por si acaso
+library(kknn)
+library(GGally)
+library(Hmisc)
+library(dplyr)
+library(corrplot)
+library(tidyr)
+library(VIM)
+library(mice)
+```
+
+```{r}
+## ANÁLISIS
+
+# Resumen de los datos
+summary(train)
+summary(test)
+```
+
+```{r}
+describe(train)
+describe(test)
+```
+
+```{r}
+# Primera cosa rara: hay datos basura con -68000 y pico en todas sus variables.
+
+train[apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)),]
+
+# Son todo números casi iguales y tienen clases distintas. Quizás es mejor eliminarlos todos. Problema: también hay datos de este tipo en test
+```
+
+```{r}
+test[apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)),]
+# A estas mierdas hay que asignarles la clase de alguna forma.
+```
+
+```{r}
+ggplot(train[apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)),], aes(x=C, fill=C)) + geom_histogram(stat="count")
+# En train hay bastantes más ceros, tal vez lo mejor sea asignar todas las test a 0.
+```
+
+```{r}
+# Índices de estos outliers por si hay que quitarlos
+outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+```
+
+```{r}
+# Valores perdidos
+has.na <- function(x) apply(x,1,function(z)any(is.na(z)))
+train[has.na(train),] # 1366 ejemplos con na en train
+test[has.na(test),] # No hay NAs en test
+# Me suena que dijo salva que test estaba limpio, no solo de nas, sino de ruido también
+```
+
+```{r}
+# NAs por variable
+apply(train, 2, function(x) sum(is.na(x)))
+```
+
+```{r}
+# NAs por ejemplo
+hist(apply(train, 1, function(x) sum(is.na(x))))
+# LOL? solo hay un NA por ejemplo oks
+# Aunque esto es genial para imputar NAs usando clasificadores (regresores más bien).
+```
+
+```{r}
+indices.nas.train <- which(has.na(train))
+```
+
+
+```{r}
+# Distribución de clases
+ggplot(train, aes(x=C, fill=C)) + geom_histogram(stat="count")
+
+train %>%
+  group_by(C) %>%
+  summarize(n = n())
+
+# En torno a 6000 datos de clase positiva y 3000 de clase negativa :(
+```
+
+```{r}
+# Correlaciones
+corrplot(cor(train[-c(indices.nas.train),-ncol(train)]))
+# Muy sospechoso, a ver si quitando los outliers mierda esos
+```
+
+```{r}
+corrplot(cor(train[-c(indices.nas.train, outliers.train.por.la.cara),-ncol(train)]))
+# Esto ya pinta mejor
+```
+
+```{r}
+# Variables más correladas
+cor(train[-c(indices.nas.train, outliers.train.por.la.cara),-ncol(train)]) %>%
+  as.data.frame() %>%
+  mutate(var1 = rownames(.)) %>%
+  gather(var2, value, -var1) %>%
+  arrange(desc(value)) %>%
+  filter(var1 < var2)
+```
+
+```{r}
+corrplot(cor(train[-c(indices.nas.train, outliers.train.por.la.cara),c(16,17,33,38,23,15,40,46,31,21,26)]))
+
+```
+
+```{r}
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X16, y=X17, col=C)) + geom_point()
+# Clarísima la dependencia. Podríamos elegir la que parezca tener menos ruido para clasificar
+```
+
+```{r}
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X33, y=X38, col=C)) + geom_point()
+# No hay correlación lineal pero ahí está pasando claramente algo.
+```
+
+```{r}
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X16, y=X23, col=C)) + geom_point()
+# Ya empieza a verse menos claro
+```
+
+```{r}
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X15, y=X16, col=C)) + geom_point()
+```
+
+```{r}
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X17, y=X23, col=C)) + geom_point()
+```
+
+```{r}
+# Por curiosidad, qué pasará en test?
+ggplot(test[-outliers.test.por.la.cara,], aes(x=X16, y=X17)) + geom_point()
+ggplot(test[-outliers.test.por.la.cara,], aes(x=X33, y=X38)) + geom_point()
+ggplot(test[-outliers.test.por.la.cara,], aes(x=X16, y=X23)) + geom_point()
+ggplot(test[-outliers.test.por.la.cara,], aes(x=X15, y=X16)) + geom_point()
+ggplot(test[-outliers.test.por.la.cara,], aes(x=X17, y=X23)) + geom_point()
+# Bastante parecidos
+```
+
+```{r}
+# Componentes principales
+pca.bruto <- prcomp(train[-c(outliers.train.por.la.cara, indices.nas.train),-ncol(train)], center=T, scale=T)
+plot(pca.bruto)
+summary(pca.bruto)
+# 95 % -> 30 PCs
+# 90 % -> 23 PCs
+# 85 % -> 18 PCs
+# 80 % -> 14 PCs
+```
+
+```{r}
+# Se verá algo con 2 PCAs?
+pca.plano <- cbind(as.data.frame(predict(pca.bruto)[,1:2]), C = train$C[-c(outliers.train.por.la.cara, indices.nas.train)])
+ggplot(pca.plano, aes(x=PC1, y=PC2, col=C)) + geom_point()
+# Pues no
+```
+
+```{r}
+# Funcionará aprender distancias?
+# library(rDML)
+# scaled.train <- as.data.frame(scale(train[,-ncol(train)]))
+# dmlmj <- dml$DMLMJ()
+# dmlmj$fit(scaled.train[-c(outliers.train.por.la.cara, indices.nas.train),], train[-c(outliers.train.por.la.cara, indices.nas.train),ncol(train)])
+# dmlmj$metric()
+# dmlmj$transformer()
+# Funciona (por lo menos en mi ordenador), aunque demasiado lento, y este es de los rápidos :(
+```
+
+```{r}
+createSubmission <- function(pred, filename){
+  sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
+  write.csv(sub, paste0("subs-knn/",filename), row.names = F)
+  sub
+}
+```
+
+```{r}
+# Probando validación cruzada
+set.seed(28)
+funcion.train.predict <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  knn.model <- train(C ~ ., train[-c(outliers.train.por.la.cara, indices.nas.train),], method="knn", preProcess = c("center", "scale"))
+  
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, funcion.train.predict)
+```
+
+```{r}
+## SUBIDA 1
+
+set.seed(28)
+sub.prueba <- funcion.train.predict(train, test)
+
+sub <- createSubmission(sub.prueba, "prueba") # 0.90045 ??????????
+```
+
+
+```{r}
+## SUBIDA 2
+
+set.seed(28)
+```
