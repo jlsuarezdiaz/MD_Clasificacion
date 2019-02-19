@@ -1,0 +1,119 @@
+---
+title: "ripper"
+author: "Elena Romero Contreras"
+date: "18 de febrero de 2019"
+output: pdf_document
+---
+
+```{r}
+# BIBLIOTECAS
+
+source("cv.R")
+
+library(RWeka)
+# library(ggplot2)
+# library(caret)
+# library(RKEEL)
+# library(GGally)
+# library(Hmisc)
+# library(dplyr)
+# library(corrplot)
+# library(tidyr)
+# library(VIM)
+# library(mice)
+```
+
+```{r}
+train <- read.csv("train.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+train$C <- as.factor(train$C)
+test <- read.csv("test.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+```
+
+```{r}
+# Crea fichero con formato subida
+createSubmission <- function(pred, filename){
+  sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
+  write.csv(sub, paste0("subs-ripper/",filename), row.names = F)
+  sub
+}
+
+# Comprueba si hay valores perdidos en cada fila
+has.na <- function(x) apply(x,1,function(z)any(is.na(z)))
+```
+```{r}
+#summary(train)
+#summary(test)
+```
+
+```{r}
+# SUBIDA 1
+set.seed(123)
+
+
+funcion.train.predict <- function(train, test){
+  # Train
+  model <- JRip(C ~ ., train)
+  # Predict
+  pred <- predict(model, test)
+  return(pred)
+}
+```
+
+```{r}
+# SUBIDA 2
+set.seed(123)
+
+#Quitamos filas que toman el mismo valor -68000 y algo en muchas de sus variables -> sospechoso
+#La mayoría de estas filas en train tienen etiqueta 0 -> asignamos 0 a filas en test con este valor
+
+funcion.train.predict <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  
+  # Train
+  model <- JRip(C ~ ., train[-outliers.train,])
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+```
+```{r}
+# SUBIDA 3
+set.seed(123)
+
+
+# Quitamos filas con NAs en train
+
+funcion.train.predict <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  
+  # Train
+  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+  
+
+# Validación cruzada
+cross_validation(train, funcion.train.predict)
+
+# Predicción test
+sub.prueba <- funcion.train.predict(train, test)
+sub <- createSubmission(sub.prueba, "prueba") 
+```
+
+# SUBIDAS
+
+Subida | Fecha | Score train (CV) | Score test | Posición
+-- | -- | -- | -- | --
+1 | 18-02-2019 | 0.73758 | 0.88514  | 14
+2 | 18-02-2019 | 0.73831 | 0.89076 | 10
+3 | 18-02-2019 | 0.73831 | 0.89076 | 10
+

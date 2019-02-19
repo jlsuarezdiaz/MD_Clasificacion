@@ -240,7 +240,7 @@ RandomForestAndBoruta <- function(datos,Class){
   print("Aplicamos random forest sobre los mejores atributos dadaos por boruta")
   model2 <- randomForest(datos[, getSelectedAttributes(Boruta.data)],Class)
   print(model2)
-
+  
   plot(Boruta.data)
 }
 
@@ -267,4 +267,3 @@ solveUnbalance <- function(data,type='ubOver'){
   balanced <- cbind(new.data$X,C=new.data$Y)
   return (balanced)
 }
-
