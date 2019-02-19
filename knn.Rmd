@@ -25,6 +25,9 @@ library(corrplot)
 library(tidyr)
 library(VIM)
 library(mice)
+library(bmrm)
+library(DMwR)
+library(NoiseFiltersR)
 ```
 
 ```{r}
@@ -189,10 +192,190 @@ ggplot(pca.plano, aes(x=PC1, y=PC2, col=C)) + geom_point()
 ```
 
 ```{r}
+# Diferencias entre densidades para cada variable (train / test)
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X1)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X1)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X2)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X2)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X3)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X3)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X4)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X4)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X5)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X5)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X6)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X6)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X7)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X7)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X8)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X8)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X9)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X9)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X10)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X10)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X11)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X11)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X12)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X12)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X13)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X13)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X14)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X14)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X15)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X15)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X16)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X16)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X17)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X17)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X18)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X18)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X19)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X19)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X20)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X20)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X21)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X21)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X22)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X22)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X23)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X23)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X24)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X24)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X25)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X25)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X26)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X26)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X27)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X27)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X28)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X28)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X29)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X29)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X30)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X30)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X31)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X31)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X32)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X32)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X33)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X33)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X34)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X34)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X35)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X35)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X36)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X36)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X37)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X37)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X38)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X38)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X39)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X39)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X40)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X40)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X41)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X41)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X42)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X42)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X43)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X43)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X44)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X44)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X45)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X45)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X46)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X46)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X47)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X47)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X48)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X48)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X49)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X49)) + geom_density()
+  
+  ggplot(train[-outliers.train.por.la.cara,], aes(x=X50)) + geom_density()
+  ggplot(test[-outliers.test.por.la.cara,], aes(x=X50)) + geom_density()
+  
+
+```
+```{r}
+# X6 toma negativos en train pero no en test -> o negativos pasan a ser 0 o se eliminan
+# Posible outlier en X7 (X7 > 300)
+# X45
+```
+
+
+```{r}
 createSubmission <- function(pred, filename){
   sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
   write.csv(sub, paste0("subs-knn/",filename), row.names = F)
   sub
+}
+```
+
+```{r}
+library(bmrm)
+
+# Calcula el score de validación cruzada para el dataset
+# funcion.train.predict: función(train, test) que entrena el clasificador con train y devuelve las predicciones sobre test
+cross_validation <- function(dataset, funcion.train.predict, folds = 10){
+  fold.indexes <- balanced.cv.fold(dataset$C)
+  return(mean(sapply(1:folds, cross_validation_fold, fold.indexes, dataset, funcion.train.predict)))
+}
+
+cross_validation_fold <- function(fold, indexes, dataset, funcion.train.predict){
+  train.inds <- which(indexes==fold)
+  train <- dataset[train.inds,]
+  test <- na.omit(dataset[-train.inds,])
+  ypred <- funcion.train.predict(train, test[,-ncol(test)])
+  mean(ypred==test$C)
 }
 ```
 
@@ -215,6 +398,176 @@ funcion.train.predict <- function(train, test){
 cross_validation(train, funcion.train.predict)
 ```
 
+
+```{r}
+set.seed(28)
+train.predict.nas.por.media <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  # Imputación de NAs por defecto Mice
+  imputados <- mice::mice(train, m=1, method="mean")
+  train.completed <- mice::complete(imputados)
+  knn.model <- train(C ~ ., train.completed, method="knn", preProcess = c("center", "scale"))
+  
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.nas.por.media)
+```
+
+```{r}
+# Imputación con knn
+set.seed(28)
+train.predict.knn.imputation <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  knn.model <- train(C ~ ., train.completed, method="knn", preProcess = c("center", "scale"), tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+  print(knn.model)
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.knn.imputation)
+```
+
+```{r}
+# Imputación con knn por clases
+set.seed(28)
+train.predict.knn.imputation.by.class <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  knn.model <- train(C ~ ., train.completed, method="knn", preProcess = c("center", "scale"), tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+  print(knn.model)
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.knn.imputation.by.class)
+```
+
+```{r}
+# PCAs
+set.seed(28)
+train.predict.pca <- function(train, test, ncomps){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train)
+  pca <- prcomp(train.completed[,-ncol(train.completed)], center=T, scale=T)
+  train.pca <- as.data.frame(predict(pca, train.completed)[,1:ncomps])
+  knn.model <- train(C ~ ., cbind(train.pca,C = train.completed$C), method="knn", tuneGrid = expand.grid(k=c(15)))
+  print(knn.model)
+  # Predict
+  test.pca <- as.data.frame(predict(pca, test)[, 1:ncomps])
+  preds <- predict(knn.model, test.pca)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+# cross_validation(train, function(train, test) train.predict.pca(train, test, 50))
+pca.scores <- sapply(2:50, function(i) cross_validation(train, function(tr, ts) train.predict.pca(tr, ts, i)))
+```
+
+```{r}
+# Imputación con knn por clases, probando k=1 (Salva dice que debe ir mejor, aunque la CV dice lo contrario)
+set.seed(28)
+train.predict.knn.imputation.k.1 <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  knn.model <- train(C ~ ., train.completed, method="knn", preProcess = c("center", "scale"), tuneGrid = expand.grid(k=c(1)),
+                     trControl = trainControl(method="none"))
+  print(knn.model)
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.knn.imputation.k.1)
+```
+
+```{r}
+set.seed(28)
+train.predict.knn.imputation.mas.precisa <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- data.frame(train)
+  nas.ordenados <- order(apply(train, 2, function(x) sum(is.na(x))), decreasing = T)[-51]
+  
+  # Imputación knn encadenada
+  for(i in 1:50){
+    indices.nas.train <- which(has.na(train.completed))
+    print(length(indices.nas.train))
+    na.labels.train <- train.completed[-indices.nas.train,nas.ordenados[i]]
+    na.data.train <- train.completed[-indices.nas.train, -c(nas.ordenados[i], 50)]
+    na.data.test <- train.completed[which(is.na(train[,nas.ordenados[i]])), -c(nas.ordenados[i], 50)]
+    knn.na.model <- train(na.data.train, na.labels.train, 
+                          method="knn", preProcess=c("center", "scale"), tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+    na.labels.test <- predict(knn.na.model, na.data.test)
+    train.completed[which(is.na(train[,nas.ordenados[i]])), nas.ordenados[i]] <- na.labels.test
+  }
+  knn.model <- train(C ~ ., train.completed, method="knn", preProcess = c("center", "scale"), tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+  print(knn.model)
+  
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+  cross_validation(train, train.predict.knn.imputation.mas.precisa)
+```
+
+```{r}
+# Imputación con knn + EF
+set.seed(28)
+train.predict.knn.imputation.ef <- function(train, test){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- EF(train.completed)$cleanData
+  knn.model <- train(C ~ ., train.cleaned, method="knn", preProcess = c("center", "scale"), tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+  print(knn.model)
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.knn.imputation.ef)
+```
+
+
+
+```{r}
+#########################################################################################################################3
+```
+
 ```{r}
 ## SUBIDA 1
 
@@ -227,6 +580,58 @@ sub <- createSubmission(sub.prueba, "prueba") # 0.90045 ??????????
 
 ```{r}
 ## SUBIDA 2
+# Igual que antes, pero remplazando NAs por la media de la columna.
 
 set.seed(28)
+sub.prueba2 <- train.predict.nas.por.media(train, test)
+
+createSubmission(sub.prueba2, "prueba2")
+```
+
+```{r}
+## SUBIDA 3
+# Imputación de NAs con knn
+set.seed(28)
+sub.3 <- train.predict.knn.imputation(train, test)
+createSubmission(sub.3, "3")
+```
+
+```{r}
+## SUBIDA 4
+# Imputación de NAs con knn por clases
+set.seed(28)
+sub.4 <- train.predict.knn.imputation.by.class(train, test)
+createSubmission(sub.4, "4")
+```
+
+```{r}
+## SUBIDA 5
+# Imputación knn + PCA al 95 %
+set.seed(28)
+sub.5 <- train.predict.pca(train, test, 30)
+createSubmission(sub.5, "5")
+```
+
+```{r}
+## SUBIDA 6
+# Imputación knn + 1-NN (prueba)
+set.seed(28)
+sub.6 <- train.predict.knn.imputation.k.1(train, test)
+createSubmission(sub.6, "6") # 0.79 osea que no k=1
+```
+
+```{r}
+## SUBIDA 7
+# Imputación knn encadenada
+set.seed(28)
+sub.7 <- train.predict.knn.imputation.mas.precisa(train, test)
+createSubmission(sub.7, "7")
+```
+
+```{r}
+## SUBIDA 8
+# Imputación knn + EF
+set.seed(28)
+sub.8 <- train.predict.knn.imputation.ef(train, test)
+createSubmission(sub.8, "8")
 ```
