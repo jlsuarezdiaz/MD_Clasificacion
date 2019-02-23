@@ -28,6 +28,10 @@ library(mice)
 library(bmrm)
 library(DMwR)
 library(NoiseFiltersR)
+library(beeswarm)
+library(moments)
+library(MASS)
+library(FSelector)
 ```
 
 ```{r}
@@ -64,7 +68,7 @@ ggplot(train[apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x
 ```{r}
 # Índices de estos outliers por si hay que quitarlos
 outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
 ```
 
 ```{r}
@@ -351,6 +355,125 @@ ggplot(pca.plano, aes(x=PC1, y=PC2, col=C)) + geom_point()
 # X45
 ```
 
+```{r}
+# No había caído antes, pero aunque los outliers no afectan directamente al knn (los vecinos cercanos no van a ser outliers),
+# si afecta mucho a la normalización, por lo que hay que quitarlos. Para el z-score deberían afectar solo los univariantes
+vector_claves_outliers_IQR_en_alguna_columna <-  function(datos, coef = 1.5){
+  return(unique(unlist(sapply(1:ncol(datos),vector_claves_outliers_IQR, 
+                       datos=datos, coef=coef))))
+}
+
+length(vector_claves_outliers_IQR_en_alguna_columna(train[-c(outliers.train.por.la.cara, indices.nas.train),-ncol(train)], coef=1.5))
+length(vector_claves_outliers_IQR_en_alguna_columna(train[-c(outliers.train.por.la.cara, indices.nas.train),-ncol(train)], coef=3.0))
+# 4000 normales y 2000 extremos, parecen demasiados
+```
+
+```{r}
+length(vector_claves_outliers_IQR_en_alguna_columna(test[-c(outliers.test.por.la.cara),], coef=1.5))
+length(vector_claves_outliers_IQR_en_alguna_columna(test[-c(outliers.test.por.la.cara),], coef=3.0))
+
+```
+
+```{r}
+for(i in 1:50){
+  boxplot(cbind(train[-c(outliers.train.por.la.cara),i], test[-c(outliers.test.por.la.cara),i]))
+}
+```
+
+```{r}
+# Simetría y curtosis (diferencia entre centro y extremos respecto a la normal.)
+skewness(train[-c(outliers.train.por.la.cara, indices.nas.train),-ncol(train)])
+kurtosis(train[-c(outliers.train.por.la.cara, indices.nas.train),-ncol(train)])-3
+
+skewness(test[-c(outliers.test.por.la.cara),-ncol(test)])
+kurtosis(test[-c(outliers.test.por.la.cara),-ncol(test)])-3
+# Hay variables demasiado asimétricas y eso puede estorbar mucho en la normalización por z-score
+```
+
+```{r}
+symmetrize.log <- function(data, skew.thres = 1.5, kurt.thres = 1.5){
+  data.sym <- data.frame(data)
+  for(i in 1:50){
+      kurt <- kurtosis(data[,i]) - 3
+      skew <- skewness(data[,i])
+      if(abs(kurt) > kurt.thres || abs(skew) > skew.thres){
+        col.min <- min(data[,i])
+        if(col.min <= 0){
+          data.sym[,i] <- log(data[,i] + 0.1 - col.min) 
+        }
+        else{
+          data.sym[,i] <- log(data[,i])
+        }
+      }
+  }
+  data.sym
+}
+
+symmetrize.boxcox <- function(data, skew.thres = 1.5, kurt.thres = 1.5){
+  data.sym <- data.frame(data)
+  boxcoxs <- list()
+  col.mins <- c()
+  for(i in 1:50){
+      kurt <- kurtosis(data[,i]) - 3
+      skew <- skewness(data[,i])
+      if(abs(kurt) > kurt.thres || abs(skew) > skew.thres){
+        col.mins <- c(col.mins, min(data[,i]))
+        if(col.mins[i] <= 0){
+          boxcoxs[[i]] <- BoxCoxTrans(data[,i] + 25000 - col.mins[i])
+          data.sym[,i] <- predict(boxcoxs[[i]], data[,i] + 1 - col.mins[i])
+        }
+        else{
+          boxcoxs[[i]] <- BoxCoxTrans(data[,i])
+          data.sym[,i] <- predict(boxcoxs[[i]], 25000 + data[,i])
+        }
+      }
+      else{
+        boxcoxs[[i]] <- 0
+        col.mins <- c(col.mins, 0)
+      }
+  }
+  return(list(models=boxcoxs, mins = col.mins, data.sym = data.sym))
+}
+
+symmetrize.boxcox.predict <- function(data, models, col.mins){
+  data.sym <- data.frame(data)
+  for(i in 1:50){
+    if(!is.numeric(models[[i]])){
+      if(col.mins[i] <= 0){
+        data.sym[,i] <- predict(models[[i]], data[,i] + 25000 - col.mins[i])
+      }
+      else{
+        data.sym[,i] <- predict(models[[i]], data[,i] + 25000)
+      }
+    }
+  }
+  data.sym
+}
+
+train.sym.model <- symmetrize.boxcox(train[-c(outliers.train.por.la.cara, indices.nas.train),])
+train.sym <- symmetrize.boxcox.predict(train[-c(outliers.train.por.la.cara, indices.nas.train),], train.sym.model$models, train.sym.model$mins)
+skewness(train.sym[,-ncol(train)])
+kurtosis(train.sym[,-ncol(train)])-3
+# El logaritmo no simetriza del todo bien algunas variables (de hecho, algunas las empeora)
+# La BoxCox lo hace mucho mejor, aunque no es perfecta
+
+# Outliers posibles tras simetrizar en X5, X7, X9, ¿X10?, X11,  X23, X29, ¿X34?, X35, x36, X37, X40, ¿X41?, X43, X48, X49
+# X45 y X47 siguen siendo raras
+```
+
+```{r}
+johnson <- preProcess(train[-c(outliers.train.por.la.cara, indices.nas.train),], method="YeoJohnson")
+train.sym <- predict(johnson, train[-c(outliers.train.por.la.cara, indices.nas.train),])
+skewness(train.sym[,-ncol(train)])
+kurtosis(train.sym[,-ncol(train)])-3
+```
+
+```{r}
+#################################################################################################################
+#################################################################################################################
+#################################################################################################################
+#################################################################################################################
+```
 
 ```{r}
 createSubmission <- function(pred, filename){
@@ -667,6 +790,174 @@ train.predict.knn.imputation.ipf.majority <- function(train, test){
 cross_validation(train, train.predict.knn.imputation.ipf.majority)
 ```
 
+
+```{r}
+# Imputación con knn y mejor filtro de ruido + simetrización
+set.seed(28)
+train.predict.14 <- function(train, test){
+  # Train
+  # Fuera outliers por la cara
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  # Imputación knn
+  train.completed <- knnImputation(train) 
+  # Filtro de ruido
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  # Train
+  knn.model <- train(C ~ ., train.cleaned, method="knn", preProcess = c("YeoJohnson", "center", "scale"), 
+                      tuneGrid = expand.grid(k=c(1,3,5,7,9,11,13,15)))
+  print(knn.model)
+  # Predict
+  preds <- predict(knn.model, test)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+cross_validation(train, train.predict.14)
+```
+
+```{r}
+# 11 + tuneado mas fuerte
+set.seed(28)
+train.predict.15 <- function(train, test, k, kernel){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  scaler <- preProcess(train.cleaned) # Centrado y escalado
+  train.scaled <- predict(scaler, train.cleaned)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  # Predict
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+train.predict.15.with.cleaned.data <- function(train, test, k, kernel){
+  scaler <- preProcess(train) # Centrado y escalado
+  train.scaled <- predict(scaler, train)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  return(preds)
+}
+
+ks <- c(11,13,15,17,19,21,23)
+kernels <- c("rectangular", "triangular", "epanechnikov", "biweight", "triweight", "cos", "inv", "gaussian", "optimal")
+cv.all <- data.frame()
+cv.cleaned <- data.frame()
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.15(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train, tp)
+    print(cv.i)
+    cv.all[as.character(k), kernel] <- cv.i
+  }
+}
+
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.15.with.cleaned.data(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train.cleaned, tp)
+    print(cv.i)
+    cv.cleaned[as.character(k), kernel] <- cv.i
+  }
+}
+
+```
+
+```{r}
+# Lo anterior añadiendo selección de características (RELIEF)
+set.seed(28)
+train.predict.18 <- function(train, test, k, kernel){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  scaler <- preProcess(train.cleaned) # Centrado y escalado
+  train.scaled <- predict(scaler, train.cleaned)
+  # Pesos relief
+  relief.weights <- relief(C ~ ., train.scaled, neighbours.count = 17)$attr_importance
+  barplot(relief.weights)
+  relief.weights[relief.weights < 0] <- 0
+  relief.weights <- sqrt(relief.weights) # Para que funcionen como pesos con la distancia euclidea.
+  train.weighted <- data.frame(t(relief.weights * t(train.scaled[,-ncol(train.scaled)])), C = train.scaled$C)
+  train.weighted <- train.weighted[, colSums(train.weighted != 0) > 0]
+  
+  # Train
+  knn.model <- train.kknn(C ~ ., train.weighted, ks = k, kernel = kernel, scale=F)
+  # Predict
+  # Centrado y escalado
+  test.scaled <- predict(scaler, test)
+  # Pesos relief
+  test.weighted <- data.frame(t(relief.weights * t(test.scaled)))
+  test.weighted <- test.weighted[, colSums(test.weighted != 0) > 0]
+  preds <- predict(knn.model, test.weighted)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+train.predict.18.with.cleaned.data <- function(train, test, k, kernel){
+  scaler <- preProcess(train) # Centrado y escalado
+  train.scaled <- predict(scaler, train)
+  # Pesos relief
+  relief.weights <- relief(C ~ ., train.scaled, neighbours.count = 17)$attr_importance
+  relief.weights[relief.weights < 0] <- 0
+  relief.weights <- sqrt(relief.weights) # Para que funcionen como pesos con la distancia euclidea.
+  train.weighted <- data.frame(t(relief.weights * t(train.scaled[,-ncol(train.scaled)])), C = train.scaled$C)
+  train.weighted <- train.weighted[, colSums(train.weighted != 0) > 0]
+  # Train
+  knn.model <- train.kknn(C ~ ., train.weighted, ks = k, kernel = kernel, scale=F)
+  #Predict
+  test.scaled <- predict(scaler, test)
+  # Pesos relief
+  test.weighted <- data.frame(t(relief.weights * t(test.scaled)))
+  test.weighted <- test.weighted[, colSums(test.weighted != 0) > 0]
+  preds <- predict(knn.model, test.weighted)
+  return(preds)
+}
+
+ks <- c(15,17,19)
+kernels <- c("rectangular", "triangular", "epanechnikov", "biweight", "triweight", "cos", "inv", "gaussian", "optimal")
+cv.all <- data.frame()
+cv.cleaned <- data.frame()
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.18(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train, tp)
+    print(cv.i)
+    cv.all[as.character(k), kernel] <- cv.i
+  }
+}
+
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.18.with.cleaned.data(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train.cleaned, tp)
+    print(cv.i)
+    cv.cleaned[as.character(k), kernel] <- cv.i
+  }
+}
+
+```
+
+
 ```{r}
 #########################################################################################################################3
 ```
@@ -757,7 +1048,7 @@ createSubmission(sub.10, "10")
 
 ```{r}
 ## SUBIDA 11
-# Imputación knn + CVCF por mayoría
+# Imputación knn + CVCF por mayoría (este filtro es el que parece funcionar mejor)
 set.seed(28)
 sub.11 <- train.predict.knn.imputation.cvcf.majority(train, test)
 createSubmission(sub.11, "11")
@@ -778,3 +1069,70 @@ set.seed(28)
 sub.13 <- train.predict.knn.imputation.ipf.majority(train, test)
 createSubmission(sub.13, "13")
 ```
+
+```{r}
+## SUBIDA 14
+# 11 + simetrías
+set.seed(28)
+sub.14 <- train.predict.14(train, test)
+createSubmission(sub.14, "14")
+```
+
+```{r}
+## SUBIDA 15 
+# 11 + tuneado de ks y kernels (k = 17, kernel=epanechnikov)
+set.seed(28)
+sub.15 <- train.predict.15(train, test, 17, "epanechnikov")
+createSubmission(sub.15, "15") # 0.91168
+```
+
+```{r}
+## SUBIDA 16 
+# 11 + tuneado de ks y kernels (k = 17, kernel=triangular)
+set.seed(28)
+sub.16 <- train.predict.15(train, test, 17, "triangular")
+createSubmission(sub.16, "16") # 0.91220
+```
+
+```{r}
+## SUBIDA 17
+# Lo mismo pero con voto mayoritario entre los mejores kernels
+set.seed(28)
+sub.17.rect <- train.predict.15(train, test, 17, "rectangular")
+sub.17.tri  <- train.predict.15(train, test, 17, "triangular")
+sub.17.epa  <- train.predict.15(train, test, 17, "epanechnikov")
+sub.17.inv  <- train.predict.15(train, test, 17, "inv")
+sub.17.gaus <- train.predict.15(train, test, 17, "gaussian")
+sub.17.all <- data.frame(sub.17.rect, sub.17.tri, sub.17.epa, sub.17.inv, sub.17.gaus)
+sub.17 <- apply(sub.17.all, 1, function(x) ifelse(sum(x==1) > 2,1,0))
+createSubmission(sub.17, "17")
+```
+
+```{r}
+## SUBIDA 18
+# Relief + kernel gaussiano
+set.seed(28)
+sub.18 <- train.predict.18(train, test, 17, "gaussian")
+createSubmission(sub.18, "18")
+
+```
+
+```{r}
+## SUBIDA 19
+# Relief + kernel coseno
+set.seed(28)
+sub.19 <- train.predict.18(train, test, 17, "cos")
+createSubmission(sub.19, "19")
+
+```
+
+```{r}
+## SUBIDA 20
+# Relief + kernel coseno
+set.seed(28)
+sub.20 <- train.predict.18(train, test, 17, "triangular")
+createSubmission(sub.20, "20")
+
+```
+
+
