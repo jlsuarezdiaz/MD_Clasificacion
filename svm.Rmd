@@ -1,0 +1,76 @@
+---
+title: "SVM"
+author: "Marta Verona Almeida"
+date: "18 de febrero de 2019"
+output: pdf_document
+---
+
+```{r}
+# BIBLIOTECAS
+
+source("cv.R")
+source("preprocesado.R")
+require('e1071')
+# library(ggplot2)
+# library(caret)
+# library(RKEEL)
+# library(GGally)
+# library(Hmisc)
+# library(dplyr)
+# library(corrplot)
+# library(tidyr)
+# library(VIM)
+# library(mice)
+```
+
+```{r}
+predictAndSave <- function(train, test,filename,kernel="radial"){
+  model <- svm(C~.,data = train,kernel=kernel)
+  
+  pred <- predict(model,train)
+  print(mean(pred==train$C))
+  #print(mean(round(pred)==train$C))
+  
+  pred <- predict(model,test)
+  #write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=round(pred)), file = filename, row.names=FALSE)
+  write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=pred), file = filename, row.names=FALSE)
+  #return(pred)
+}
+```
+
+```{r}
+data <- read.csv("train.csv", header=TRUE, na.strings="?")
+test.data <- read.csv("test.csv", header=TRUE, na.strings="?")
+
+```
+
+
+```{r}
+outliers.train <- which(apply(data[,-ncol(data)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+outliers.test <- which(apply(test.data, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+
+new_data = preProcessData(data[-outliers.train,],test.data)
+scaled.train = new_data[[1]]
+scaled.test = new_data[[2]]
+
+
+scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
+
+predictAndSave(scaled.train.knn, scaled.test,'missing-knn-sin-outliers-raros.csv',kernel="radial")
+```
+
+```{r}
+scaled.train.outliers.knn <- computeOutliers(scaled.train.knn, type='knn')
+predictAndSave(scaled.train.outliers.knn, scaled.test,'missing-knn-sin-outliers-raros-outliers-knn.csv',kernel="radial")
+```
+
+```{r}
+scaled.train.knn.balanced <- solveUnbalance(scaled.train.knn)
+predictAndSave(scaled.train.knn.balanced, scaled.test,'missing-knn-sin-outliers-raros--balance.csv',kernel="radial")
+```
+
+# SUBIDAS
+---
+- Posición 7
+- Tratando los outliers con knn he vuelto a bajar a 0.882
+- Si añado balance vuelve a bajar a 0.90964
