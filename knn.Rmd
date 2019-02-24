@@ -957,6 +957,120 @@ for(k in ks){
 
 ```
 
+```{r}
+# 16 + tuneado PCA
+set.seed(28)
+train.predict.21 <- function(train, test, k, kernel, ndims){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  scaler <- preProcess(train.cleaned, method=c("center", "scale", "pca"), pcaComp=ndims) # escalado + PCA
+  train.scaled <- predict(scaler, train.cleaned)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  # Predict
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+train.predict.21.with.cleaned.data <- function(train, test, k, kernel, ndims){
+  scaler <- preProcess(train, method=c("center", "scale", "pca"), pcaComp = ndims) # Centrado y escalado
+  train.scaled <- predict(scaler, train)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  return(preds)
+}
+
+# ks <- c(11,13,15,17,19,21,23)
+kernels <- c("rectangular", "triangular", "epanechnikov", "cos", "inv", "gaussian", "optimal")
+dims <- c(10, 20, 25, 30, 32, 34, 36, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49)
+cv.all <- data.frame()
+cv.cleaned <- data.frame()
+for(dim in dims){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.21(tr, tst, 17, kernel, dim)
+    print(paste0("DIM = ", dim, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train, tp)
+    print(cv.i)
+    cv.all[as.character(dim), kernel] <- cv.i
+  }
+}
+
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+for(dim in dims){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.21.with.cleaned.data(tr, tst, 17, kernel, dim)
+    print(paste0("DIM = ", dim, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train.cleaned, tp)
+    print(cv.i)
+    cv.cleaned[as.character(dim), kernel] <- cv.i
+  }
+}
+
+```
+
+
+```{r}
+# 16 + tuneado PCA threshold
+set.seed(28)
+train.predict.22 <- function(train, test, k, kernel, thresh){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  scaler <- preProcess(train.cleaned, method=c("center", "scale", "pca"), thresh=thresh) # escalado + PCA
+  train.scaled <- predict(scaler, train.cleaned)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  # Predict
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+train.predict.22.with.cleaned.data <- function(train, test, k, kernel, thresh){
+  scaler <- preProcess(train, method=c("center", "scale", "pca"), thresh=thresh) # Centrado y escalado
+  train.scaled <- predict(scaler, train)
+  knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
+  test.scaled <- predict(scaler, test)
+  preds <- predict(knn.model, test.scaled)
+  return(preds)
+}
+
+# ks <- c(11,13,15,17,19,21,23)
+kernels <- c("rectangular", "triangular", "epanechnikov", "cos", "inv", "gaussian", "optimal")
+cv.all <- data.frame()
+cv.cleaned <- data.frame()
+for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.22(tr, tst, 17, kernel, 0.99)
+    print(paste0("KERNEL = ", kernel))
+    cv.i <- cross_validation(train, tp)
+    print(cv.i)
+    # cv.all[as.character(dim), kernel] <- cv.i
+}
+
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.22.with.cleaned.data(tr, tst, 17, kernel, 0.99)
+    print(paste0("KERNEL = ", kernel))
+    cv.i <- cross_validation(train.cleaned, tp)
+    print(cv.i)
+    # cv.cleaned[as.character(dim), kernel] <- cv.i
+  
+}
+```
+
 
 ```{r}
 #########################################################################################################################3
@@ -1133,6 +1247,27 @@ set.seed(28)
 sub.20 <- train.predict.18(train, test, 17, "triangular")
 createSubmission(sub.20, "20")
 
+```
+
+```{r}
+## SUBIDA 21
+# 16 + PCA tuneado (20 dimensiones, gaussian)
+set.seed(28)
+sub.21 <- train.predict.21(train, test, 17, "gaussian", 20)
+createSubmission(sub.21, "21")
+```
+
+```{r}
+## SUBIDA 22
+# 16 + PCA 99 %
+set.seed(28)
+sub.22 <- train.predict.22(train, test, 17, "gaussian", 0.99)
+createSubmission(sub.22, "22")
+# conclusión: PCA es basura
+```
+
+```{r}
+## SUBIDA 23 (21 arreglada)
 ```
 
 
