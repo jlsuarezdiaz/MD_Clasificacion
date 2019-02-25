@@ -28,12 +28,12 @@ predictAndSave <- function(train, test,filename,kernel="radial"){
   model <- svm(C~.,data = train,kernel=kernel)
   
   pred <- predict(model,train)
-  print(mean(pred==train$C))
-  #print(mean(round(pred)==train$C))
+  #print(mean(pred==train$C))
+  print(mean(round(pred)==train$C))
   
   pred <- predict(model,test)
-  #write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=round(pred)), file = filename, row.names=FALSE)
-  write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=pred), file = filename, row.names=FALSE)
+  write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=round(pred)), file = filename, row.names=FALSE)
+  #write.csv(data.frame('Id'=c(1:length(pred)),'Prediction'=pred), file = filename, row.names=FALSE)
   #return(pred)
 }
 ```
@@ -41,7 +41,6 @@ predictAndSave <- function(train, test,filename,kernel="radial"){
 ```{r}
 data <- read.csv("train.csv", header=TRUE, na.strings="?")
 test.data <- read.csv("test.csv", header=TRUE, na.strings="?")
-
 ```
 
 
@@ -69,8 +68,54 @@ scaled.train.knn.balanced <- solveUnbalance(scaled.train.knn)
 predictAndSave(scaled.train.knn.balanced, scaled.test,'missing-knn-sin-outliers-raros--balance.csv',kernel="radial")
 ```
 
+
+```{r}
+# 20
+# Elimino variables menos relacionadas con la salida
+scaled.train.remove.low.cor <- removeLowCorrelationAttributes(scaled.train.knn)
+predictAndSave(scaled.train.remove.low.cor,scaled.test,'20.csv')
+```
+
+```{r}
+# 21 validación cruzada
+
+# Crea fichero con formato subida
+createSubmission <- function(pred, filename){
+  sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
+  write.csv(sub, paste0("subs-svm/",filename), row.names = F)
+  sub
+}
+
+funcion.train.predict <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  #indices.nas.train <- which(has.na(train))
+  
+  new_data = preProcessData(train[-outliers.train,],test)
+  scaled.train = new_data[[1]]
+  scaled.test = new_data[[2]]
+  
+  scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
+  
+  # Training
+  model <- svm(C~.,data = scaled.train.knn,kernel="radial")
+  pred <- predict(model,scaled.train.knn)
+  print(mean(round(pred)==scaled.train.knn$C))
+  
+  # Predict
+  pred <- predict(model, test)
+  #pred[outliers.test] <- 0
+  return(pred)
+}
+
+cross_validation(data, funcion.train.predict)
+sub.prueba <- funcion.train.predict(data, test.data)
+sub <- createSubmission(round(sub.prueba), "21.csv")
+```
 # SUBIDAS
 ---
 - Posición 7
 - Tratando los outliers con knn he vuelto a bajar a 0.882
 - Si añado balance vuelve a bajar a 0.90964
+- Elimino las menos correladas: 0.92496, se queda igual
