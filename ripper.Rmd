@@ -752,6 +752,42 @@ funcion.train.predict <- function(train, test){
 ```
 
 
+```{r}
+# SUBIDA 19
+set.seed(123)
+
+
+# Primero filtro ruido CVCF por mayoría y después KNN imputación por clases
+
+funcion.train.predict <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+
+  # Limpiamos ruido
+  train.cleaned <- CVCF(train, consensus = F)$cleanData
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train.cleaned[train.cleaned$C == 0,]) 
+  train.completed.1 <- knnImputation(train.cleaned[train.cleaned$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  
+  # Training
+  model <- JRip(C ~ ., train.completed)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+}
+
+sub <- funcion.train.predict(train, test)
+createSubmission(sub, "test19")
+```
+
 
 
 # SUBIDAS
@@ -776,6 +812,7 @@ Subida | Fecha | Score train (CV) | Score test | Posición
 16 | 25-02-2019 | | 0.90148 | 3
 17 | 25-02-2019 | | 0.89076 | 3
 18 | 25-02-2019 | | 0.88667 | 3
+19 | 26-02-2019 | | 0.89025 | 3
 
 * Scores train (CV) no están bien
 * Subida 16 = subida 11 (no debí de subir bien la 11)
