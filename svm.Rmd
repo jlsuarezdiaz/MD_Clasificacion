@@ -75,8 +75,8 @@ scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
 
 scaled.train.knn = computeMissingValues(scaled.train, type = "mean")
-scaled.train.outliers.knn <- computeOutliers(scaled.train.knn, type='remove')
-predictAndSave(scaled.train,scaled.test,'subs-svm/3.csv')
+scaled.train.outliers.knn <- computeOutliers(scaled.train, type='remove')
+predictAndSave(scaled.train.outliers.knn,scaled.test,'subs-svm/3.csv')
 ```
 
 ```{r}
