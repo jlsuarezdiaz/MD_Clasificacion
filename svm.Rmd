@@ -52,7 +52,7 @@ new_data = preProcessData(data,test.data)
 scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
 
-scaled.train.knn = computeMissingValues(scaled.train, type = "remove")
+scaled.train = computeMissingValues(scaled.train, type = "remove")
 predictAndSave(scaled.train,scaled.test,'subs-svm/1.csv')
 ```
 
@@ -188,7 +188,7 @@ scaled.test = new_data[[2]]
 scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
 scaled.train.outliers.knn <- computeOutliers(scaled.train, type='rf')
 
-predictAndSave(scaled.train.remove.low.cor,scaled.test,'subs-svm/12.csv')
+predictAndSave(scaled.train.outliers.knn,scaled.test,'subs-svm/12.csv')
 ```
 
 
@@ -216,10 +216,9 @@ new_data = preProcessData(data[-outliers.train,],test.data)
 scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
 
-
 scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
 
-predictAndSave(scaled.train.knn, scaled.test,'missing-knn-sin-outliers-raros.csv',kernel="radial")
+predictAndSave(scaled.train.knn, scaled.test, 'missing-knn-sin-outliers-raros.csv', kernel="radial")
 ```
 
 ```{r}
@@ -234,7 +233,7 @@ scaled.test = new_data[[2]]
 scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
 scaled.train.outliers.knn <- computeOutliers(scaled.train, type='knn')
 
-predictAndSave(scaled.train.knn, scaled.test,'missing-knn-sin-outliers-raros-outliers-knn.csv',kernel="radial")
+predictAndSave(scaled.train.outliers.knn, scaled.test, 'missing-knn-sin-outliers-raros-outliers-knn.csv', kernel="radial")
 ```
 
 ```{r}
@@ -264,43 +263,6 @@ scaled.train.remove.low.cor <- removeLowCorrelationAttributes(scaled.train.knn)
 predictAndSave(scaled.train.remove.low.cor,scaled.test,'20.csv')
 ```
 
-```{r}
-# 21 validación cruzada
-
-# Crea fichero con formato subida
-createSubmission <- function(pred, filename){
-  sub <- cbind(Id = 1:length(pred), Prediction = as.numeric(as.character(pred)))
-  write.csv(sub, paste0("subs-svm/",filename), row.names = F)
-  sub
-}
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  #indices.nas.train <- which(has.na(train))
-  
-  new_data = preProcessData(train[-outliers.train,],test)
-  scaled.train = new_data[[1]]
-  scaled.test = new_data[[2]]
-  
-  scaled.train.knn = computeMissingValues(scaled.train, type = "knn")
-  
-  # Training
-  model <- svm(C~.,data = scaled.train.knn,kernel="radial")
-  pred <- predict(model,scaled.train.knn)
-  print(mean(round(pred)==scaled.train.knn$C))
-  
-  # Predict
-  pred <- predict(model, test)
-  #pred[outliers.test] <- 0
-  return(pred)
-}
-
-cross_validation(data, funcion.train.predict)
-sub.prueba <- funcion.train.predict(data, test.data)
-sub <- createSubmission(round(sub.prueba), "21.csv")
-```
 
 
 ```{r}
@@ -318,7 +280,7 @@ predictAndSave(train.pca,test.pca,'22.csv')
 outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
 outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
 if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
-train.completed <- knnImputation(train) 
+train.completed <- computeMissingValues(train,type="knn") 
 train.completed$C <- as.factor(train.completed$C)
 train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
 train.transformed <- attr.transform.add(train.cleaned)
@@ -384,13 +346,3 @@ while ( i < length(types)){
 }
 ```
 
-
-# SUBIDAS
----
-- Posición 7
-- Tratando los outliers con knn he vuelto a bajar a 0.882
-- Si añado balance vuelve a bajar a 0.90964
-- Elimino las menos correladas: 0.92496, se queda igual
-- PCA y todo igual 
-- Combinación juanlu -> subo a pos 3 0.92649
-- Cambio orden juanlu -> subo a 2 0.92751
