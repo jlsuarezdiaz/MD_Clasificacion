@@ -108,7 +108,7 @@ train %>%
 # En torno a 6000 datos de clase positiva y 3000 de clase negativa :(
 ```
 
-```{r}
+```{r, cache=T}
 # Correlaciones
 corrplot(cor(train[-c(indices.nas.train),-ncol(train)]))
 # Muy sospechoso, a ver si quitando los outliers mierda esos
@@ -125,12 +125,13 @@ cor(train[-c(indices.nas.train, outliers.train.por.la.cara),-ncol(train)]) %>%
   as.data.frame() %>%
   mutate(var1 = rownames(.)) %>%
   gather(var2, value, -var1) %>%
-  arrange(desc(value)) %>%
-  filter(var1 < var2)
+  arrange(desc(abs(value))) %>%
+  filter(var1 < var2) %>%
+  head(n=10)
 ```
 
 ```{r}
-corrplot(cor(train[-c(indices.nas.train, outliers.train.por.la.cara),c(16,17,33,38,23,15,40,46,31,21,26)]))
+corrplot(cor(train[-c(indices.nas.train, outliers.train.por.la.cara),c(16,17,33,38,23,15,40,46,26,44,28,37)]))
 
 ```
 
@@ -154,7 +155,7 @@ ggplot(train[-outliers.train.por.la.cara,], aes(x=X15, y=X16, col=C)) + geom_poi
 ```
 
 ```{r}
-ggplot(train[-outliers.train.por.la.cara,], aes(x=X17, y=X23, col=C)) + geom_point()
+ggplot(train[-outliers.train.por.la.cara,], aes(x=X40, y=X46, col=C)) + geom_point()
 ```
 
 ```{r}
@@ -457,7 +458,7 @@ cross_validation <- function(dataset, funcion.train.predict, folds = 5){
 cross_validation_fold <- function(fold, indexes, dataset, funcion.train.predict){
   test.inds <- which(indexes==fold)
   train <- dataset[-test.inds,]
-  test <- na.omit(dataset[test.inds,])
+  test <- wrong.remove(na.omit(dataset[test.inds,]))
   ypred <- funcion.train.predict(train, test[,-ncol(test)])
   mean(ypred==test$C)
 }
@@ -702,6 +703,16 @@ for(k in ks){
 }
 ```
 
+```{r}
+nm <- names(train.cleaned)
+i <- 5
+ggplot(train.cleaned, aes_string(y=nm[i], fill="C")) + geom_boxplot()
+
+```
+```{r}
+ggplot(train.cleaned, aes(y=X5*X5, fill=C)) + geom_boxplot()
+```
+
 
 ```{r}
 
@@ -824,7 +835,7 @@ attr.transform.add <- function(data){
   trans$tX16 <- log(trans$X16)
   trans$tX17 <- log(trans$X17)
   trans$tX18 <- log(trans$X18)
-  # trans$X21 <- cbrt(trans$X21)
+  trans$X21 <- cbrt(trans$X21)
   train$X23[train$X23 < 0] <- 0
   trans$tX23 <- log(trans$X23 + 100)
   trans$tX24 <- log(trans$X24)
@@ -850,6 +861,9 @@ attr.transform.add <- function(data){
   
   ##
   trans <- trans[,-c(11,34,39,41,43)]
+  # trans <- trans[,-c(34)]
+  # trans <- trans[,-c(11,34,39,41,43)]
+  # trans <- trans[, -c(11,34,39,41,43,12,13,19,50)]
   ##
   
   trans
@@ -930,7 +944,7 @@ train.predict.29 <- function(train, test, k, kernel){
   if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
   train.completed <- knnImputation(train) 
   train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
-  train.transformed <- attr.transform.add(train.cleaned)
+  train.transformed <- attr.transform.add(train.cleaned) 
   scaler <- preProcess(train.transformed) # Centrado y escalado
   train.scaled <- predict(scaler, train.transformed)
   knn.model <- train.kknn(C ~ ., train.scaled, ks = k, kernel = kernel, scale=F)
@@ -982,6 +996,89 @@ for(k in ks){
 
 ```
 
+```{r}
+# Arma secreta 1
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+train.transformed <- attr.transform.add(train.cleaned) %>% dplyr::select(-C,C)
+scaler <- preProcess(train.transformed)
+train.scaled <- predict(scaler, train.transformed)
+dmlmj <- dml$DMLMJ(n_neighbors = 17)
+dmlmj$fit(train.scaled[,-ncol(train.scaled)], train.scaled[,ncol(train.scaled)])
+train.dmlmj <- data.frame(dmlmj$transform(train.scaled[,-ncol(train.scaled)]), C=train.scaled$C)
+```
+
+```{r}
+# CV para arma secreta 1
+set.seed(28)
+train.predict.dmlmj <- function(train, test, k, kernel){
+  # Train
+  outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara) > 0) train <- train[-outliers.train.por.la.cara,]
+  train.completed <- knnImputation(train) 
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  train.transformed <- attr.transform.add(train.cleaned) %>% dplyr::select(-C,C)
+  scaler <- preProcess(train.transformed) # Centrado y escalado
+  train.scaled <- predict(scaler, train.transformed)
+  dmlmj <- dml$DMLMJ(n_neighbors = 5)
+  dmlmj$fit(train.scaled[,-ncol(train.scaled)], train.scaled[,ncol(train.scaled)])
+  train.dmlmj <- data.frame(dmlmj$transform(train.scaled[,-ncol(train.scaled)]), C=train.scaled$C)
+  knn.model <- train.kknn(C ~ ., train.dmlmj, ks = k, kernel = kernel, scale=F)
+  # Predict
+  test[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+  test.transformed <- attr.transform.add(test)
+  test.scaled <- predict(scaler, test.transformed)
+  test.dmlmj <- data.frame(dmlmj$transform(test.scaled))
+  preds <- predict(knn.model, test.dmlmj)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+train.predict.dmlmj.with.cleaned.data <- function(train, test, k, kernel){
+  scaler <- preProcess(train) # Centrado y escalado
+  train.scaled <- predict(scaler, train)
+  dmlmj <- dml$DMLMJ(n_neighbors = 5)
+  dmlmj$fit(train.scaled[,-ncol(train.scaled)], train.scaled[,ncol(train.scaled)])
+  train.dmlmj <- data.frame(dmlmj$transform(train.scaled[,-ncol(train.scaled)]), C=train.scaled$C)
+  knn.model <- train.kknn(C ~ ., train.dmlmj, ks = k, kernel = kernel, scale=F)
+  test.scaled <- predict(scaler, test)
+  test.dmlmj <- data.frame(dmlmj$transform(test.scaled))
+  preds <- predict(knn.model, test.dmlmj)
+  return(preds)
+}
+
+ks <- c(19,21,23,25)
+kernels <- c("rectangular", "triangular", "epanechnikov", "cos", "inv", "gaussian", "optimal")
+cv.all.dmlmj <- data.frame()
+cv.cleaned.dmlmj <- data.frame()
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.dmlmj(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train, tp)
+    print(cv.i)
+    cv.all.dmlmj[as.character(k), kernel] <- cv.i
+  }
+}
+
+train.revised <- train[-outliers.train.por.la.cara,]
+train.completed <- knnImputation(train.revised)
+train.cleaned <- CVCF(train.completed, consensus=F)$cleanData
+train.transformed <- attr.transform.add(train.cleaned) %>% dplyr::select(-C,C)
+for(k in ks){
+  for(kernel in kernels){
+    tp <- function(tr, tst) train.predict.dmlmj.with.cleaned.data(tr, tst, k, kernel)
+    print(paste0("K = ", k, "; KERNEL = ", kernel))
+    cv.i <- cross_validation(train.transformed, tp)
+    print(cv.i)
+    cv.cleaned.dmlmj[as.character(k), kernel] <- cv.i
+  }
+}
+
+```
+
 
 ```{r}
 train.cleaned.0 <- train.cleaned[train.cleaned$C == 0, ]
@@ -1024,7 +1121,7 @@ createSubmission(sub.16, "16") # 0.91220
 # 16 + outliers (k = 23, kernel=cos)
 set.seed(28)
 sub.24 <- train.predict.24(train, test, 23, "cos")
-# createSubmission(sub.24, "24")
+createSubmission(sub.24, "24")
 
 ```
 
@@ -1107,6 +1204,421 @@ set.seed(28)
 sub.33 <- train.predict.29(train, test, 19, "epanechnikov")
 createSubmission(sub.33, "33") # 0.91475
 ```
+
+```{r}
+## SUBIDA 34
+# Prueba de arma secreta 1
+#
+set.seed(28)
+sub.34 <- train.predict.dmlmj(train, test, 19, "epanechnikov")
+createSubmission(sub.34, "34")
+```
+
+```{r}
+## SUBIDA 35
+# Seleccionando transformaciones (X34) k=19 ker=epanechnikov
+set.seed(28)
+sub.35 <- train.predict.29(train, test, 19, "epanechnikov")
+createSubmission(sub.35, "35")
+```
+
+```{r}
+## SUBIDA 36
+# Seleccionando transformaciones (las de 33 sin cambiar variables a 0) k=19 ker=epanechnikov
+set.seed(28)
+sub.36 <- train.predict.29(train, test, 19, "epanechnikov")
+createSubmission(sub.36, "36")
+```
+
+```{r}
+## SUBIDA 37
+# Seleccionando transformaciones (quitando todas con chi2 < 0.2) k=19 ker=epanechnikov (ERROR)
+set.seed(28)
+sub.37 <- train.predict.29(train, test, 19, "epanechnikov")
+createSubmission(sub.37, "37") # 0.
+```
+
+```{r}
+## SUBIDA 38
+# Seleccionando transformaciones (quitando todas con chi2 < 0.2) k=19 ker=epanechnikov
+set.seed(28)
+sub.38 <- train.predict.29(train, test, 19, "epanechnikov")
+createSubmission(sub.38, "38") # 0.
+```
+
+```{r}
+## SUBIDA 39
+# Y si cambiamos el orden? cvcf -> transformaciones -> imputacion
+k <- 19
+kernel <- "epanechnikov"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+test[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(test)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.39 <- preds
+createSubmission(sub.39, "39")
+```
+
+```{r}
+## SUBIDA 40
+# Lo de antes pero quitando los outliers por la cara
+k <- 19
+kernel <- "epanechnikov"
+set.seed(28)
+train.sin.outliers <- train[-outliers.train.por.la.cara,]
+train.cleaned.2 <- CVCF(train.sin.outliers, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+test[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(test)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.40 <- preds
+createSubmission(sub.40, "40")
+```
+
+```{r}
+## SUBIDA 41
+# Ya que la 39 funcionó inesperadamente bien, a ver que tal con otros parámetros
+k <- 17
+kernel <- "triangular"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+test[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(test)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.41 <- preds
+createSubmission(sub.41, "41")
+```
+
+```{r}
+## SUBIDA 42
+# Ya que la 39 funcionó inesperadamente bien, a ver que tal con otros parámetros
+k <- 23
+kernel <- "gaussian"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+test[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(test)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.42 <- preds
+createSubmission(sub.42, "42")
+```
+
+```{r}
+## SUBIDA 43
+# Ya que la 39 funcionó inesperadamente bien, a ver que tal con otros parámetros
+k <- 17
+kernel <- "epanechnikov"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+testt <- data.frame(test)
+testt[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(testt)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.43 <- preds
+createSubmission(sub.43, "43") # 0.91832
+```
+
+```{r}
+## SUBIDA 44
+# Lo anterior + NCA
+set.seed(28)
+k <- 17
+kernel <- "epanechnikov"
+train.nca.partition <- function(i){
+  train.nca.i <- read.csv(paste0("./train_nca_",i,".csv"), header = F)
+  train.nca.i$C <- train.scaled.2$C
+  names(train.nca.i) <- names(train.scaled.2)
+  test.nca.i <- read.csv(paste0("./test_nca_",i,".csv"), header = F)
+  names(test.nca.i) <- names(test.scaled)
+  knn.model <- train.kknn(C ~ ., train.nca.i, ks=k, kernel=kernel, scale=F)
+  preds <- predict(knn.model, test.nca.i)
+  preds[outliers.test.por.la.cara] <- 0
+  preds
+}
+
+sub.44.all <- sapply(0:8, train.nca.partition)
+sub.44 <- apply(sub.44.all, 1, function(x) ifelse(sum(x==1) > 4,1,0))
+createSubmission(sub.44, "44") # 0.
+```
+
+```{r}
+## SUBIDA 45
+# Lo anterior + NCA (pequeña corrección de lo anterior)
+set.seed(28)
+k <- 17
+kernel <- "epanechnikov"
+train.nca.partition.2 <- function(i){
+  train.nca.i <- read.csv(paste0("./train_nca_x_",i,".csv"), header = F)
+  train.nca.y <- read.csv(paste0("./train_nca_y_",i,".csv"), header = F)
+  train.nca.i$C <- as.factor(train.nca.y$V1)
+  names(train.nca.i) <- names(train.scaled.2)
+  test.nca.i <- read.csv(paste0("./test_nca_",i,".csv"), header = F)
+  names(test.nca.i) <- names(test.scaled)
+  knn.model <- train.kknn(C ~ ., train.nca.i, ks=k, kernel=kernel, scale=F)
+  preds <- predict(knn.model, test.nca.i)
+  preds[outliers.test.por.la.cara] <- 0
+  preds
+}
+
+sub.45.all <- sapply(0:8, train.nca.partition.2)
+sub.45 <- apply(sub.45.all, 1, function(x) ifelse(sum(x==1) > 4,1,0))
+createSubmission(sub.45, "45") # 0.
+```
+
+```{r}
+## SUBIDA 46
+# Ya que la 39 funcionó inesperadamente bien, a ver que tal con otros parámetros
+k <- 15
+kernel <- "epanechnikov"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+testt <- data.frame(test)
+testt[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(testt)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.46 <- preds
+createSubmission(sub.46, "46") # 0.
+```
+
+```{r}
+## SUBIDA 47
+# Ya que la 39 funcionó inesperadamente bien, a ver que tal con otros parámetros
+k <- 21
+kernel <- "epanechnikov"
+set.seed(28)
+train.cleaned.2 <- CVCF(train, consensus = F)$cleanData
+train.transformed.2 <- attr.transform.add(train.cleaned.2) %>% dplyr::select(-C,C)
+train.completed.2 <- knnImputation(train.transformed.2)
+scaler <- preProcess(train.completed.2)
+train.scaled.2 <- predict(scaler, train.completed.2)
+knn.model <- train.kknn(C ~ ., train.scaled.2, ks = k, kernel = kernel, scale=F)
+
+testt <- data.frame(test)
+testt[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(testt)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.47 <- preds
+createSubmission(sub.47, "47") # 0.
+```
+
+```{r}
+## SUBIDA 48
+# EL orden inicial (imputacion -> filtro -> transformacion) pero sin tocar outliers
+k <- 17
+kernel <- "epanechnikov"
+set.seed(28)
+train.completed.3 <- knnImputation(train) 
+train.cleaned.3 <- CVCF(train.completed.3, consensus = F)$cleanData
+train.transformed.3 <- attr.transform.add(train.cleaned.3) %>% dplyr::select(-C, C) 
+scaler <- preProcess(train.transformed.3)
+train.scaled.3 <- predict(scaler, train.transformed.3)
+knn.model <- train.kknn(C ~ ., train.scaled.3, ks = k, kernel = kernel, scale=F)
+
+testt <- data.frame(test)
+testt[outliers.test.por.la.cara,] <- 1 # Para que no estorben en las transformaciones
+test.transformed <- attr.transform.add(testt)
+test.scaled <- predict(scaler, test.transformed)
+preds <- predict(knn.model, test.scaled)
+preds[outliers.test.por.la.cara] <- 0
+sub.48 <- preds
+createSubmission(sub.48, "48") # 0.
+```
+
+```{r}
+## SUBIDA 49
+# Lo anterior + CNCA (1)
+set.seed(28)
+k <- 17
+kernel <- "epanechnikov"
+train.cnca.partition.1 <- function(i){
+  train.cnca.i <- read.csv(paste0("./train_cnca2_x_",i,".csv"), header = F)
+  train.cnca.y <- read.csv(paste0("./train_cnca2_y_",i,".csv"), header = F)
+  train.cnca.i$C <- as.factor(train.cnca.y$V1)
+  names(train.cnca.i) <- names(train.scaled.2)
+  test.cnca.i <- read.csv(paste0("./test_cnca2_",i,".csv"), header = F)
+  names(test.cnca.i) <- names(test.scaled)
+  knn.model <- train.kknn(C ~ ., train.cnca.i, ks=k, kernel=kernel, scale=F)
+  preds <- predict(knn.model, test.cnca.i)
+  preds[outliers.test.por.la.cara] <- 0
+  preds
+}
+
+sub.49.all <- sapply(0:8, train.cnca.partition.1)
+sub.49 <- apply(sub.49.all, 1, function(x) ifelse(sum(x==1) > 4,1,0))
+createSubmission(sub.49, "49") # 0.
+```
+
+```{r}
+## SUBIDA 50
+# Lo anterior + CNCA (1)
+set.seed(28)
+k <- 17
+kernel <- "epanechnikov"
+train.cnca.partition.2 <- function(i){
+  train.cnca.i <- read.csv(paste0("./train_cnca2_",i,".csv"), header = F)
+  train.cnca.i$C <- train.scaled.2$C
+  names(train.cnca.i) <- names(train.scaled.2)
+  test.cnca.i <- read.csv(paste0("./test_cnca2_",i,".csv"), header = F)
+  names(test.cnca.i) <- names(test.scaled)
+  knn.model <- train.kknn(C ~ ., train.cnca.i, ks=k, kernel=kernel, scale=F)
+  preds <- predict(knn.model, test.cnca.i)
+  preds[outliers.test.por.la.cara] <- 0
+  preds
+}
+
+sub.50.all <- sapply(0:8, train.cnca.partition.2)
+sub.50 <- apply(sub.50.all, 1, function(x) ifelse(sum(x==1) > 4,1,0))
+createSubmission(sub.50, "50") # 0.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+train.predict.j46 <- function(train, test){
+  # Train
+  train.cleaned.j <- CVCF(train, consensus = F)$cleanData
+  outliers.train.por.la.cara.j <- which(apply(train.cleaned.j[,-ncol(train.cleaned.j)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara.j <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  # if(length(outliers.train.por.la.cara.j) > 0) train.cleaned.j <- train.cleaned.j[-outliers.train.por.la.cara.j,]
+  
+  
+  train.transformed.j <- attr.transform.add(train.cleaned.j) %>% dplyr::select(-C,C)
+  train.completed.j <- knnImputation(train.transformed.j) 
+  # scaler <- preProcess(train.completed.j)
+  # train.scaled.j <- predict(scaler, train.completed.j)
+  
+  model <- caret::train(C ~ ., train.completed.j, method="ctree", 
+                        tuneGrid = expand.grid(mincriterion = c(0.95,0.94,0.93,0.92,0.91,0.90)))
+
+  model$bestTune
+  # completar con el que salga el mejor
+  # model = J48(C~., data=train.scaled.j, control = Weka_control(M = , C = ))
+  model = ctree(C ~ .,data = train.completed.j,control = ctree_control(mincriterion = 0.92))
+  # Predict
+  test[outliers.test.por.la.cara.j,] <- 1
+  test.transformed.j <- attr.transform.add(test)
+  # test.scaled.j <- predict(scaler, test.transformed.j)
+  preds <- predict(model, test.transformed.j)
+  preds[outliers.test.por.la.cara] <- 0
+  return(preds)
+}
+
+
+train$C <- as.factor(train$C)
+cross_validation(train, train.predict.knn.46)
+
+set.seed(28)
+
+sub.j46 <- train.predict.j46(train, test)
+createSubmission(sub.j46, "j46")
+
+```
+
+
+
+
+
+
+```{r}
+
+train.cleaned.j <- CVCF(train, consensus = F)$cleanData
+  outliers.train.por.la.cara.j <- which(apply(train.cleaned.j[,-ncol(train.cleaned.j)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test.por.la.cara.j <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  if(length(outliers.train.por.la.cara.j) > 0) train.cleaned.j <- train.cleaned.j[-outliers.train.por.la.cara.j,]
+  
+  train.transformed.j <- attr.transform.add(train.cleaned.j) %>% dplyr::select(-C,C)
+  train.completed.j <- knnImputation(train.transformed.j) 
+  
+  train.discretizado.j <- arulesCBA::discretizeDF.supervised(C~ .,train.completed.j, method= "mdlp")
+  copia = train.discretizado.j
+  model <- caret::train(C ~ ., train.discretizado.j, method="ctree",
+                        tuneGrid = expand.grid(mincriterion = c(0.95,0.94,0.93,0.92,0.91,0.90)))
+  model = ctree(C ~., data = train.discretizado.j, control = ctree_control(mincriterion = 0.95))
+
+  testt <- data.frame(test)
+  testt[outliers.test.por.la.cara.j,] <- 1
+  test.transformed.j <- attr.transform.add(testt)
+  test.discretized.j <- arules::discretizeDF(test.transformed.j,train.discretizado.j)
+  preds <- predict(model, test.discretized.j)
+  preds[outliers.test.por.la.cara.j] <- 0
+
+
+```
+
 
 
 

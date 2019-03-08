@@ -1,0 +1,55 @@
+---
+title: "Nada"
+author: "Juan Luis Suárez Díaz"
+date: "6 de marzo de 2019"
+output:
+  pdf_document: default
+---
+
+```{r}
+train <- read.csv("train.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+train$C <- as.factor(train$C)
+test <- read.csv("test.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
+sample <- read.csv("sampleSubmission.csv")
+
+## BIBLIOTECAS
+
+library(ggplot2)
+library(caret)
+library(RKEEL)
+# library(rDML) # Por si acaso
+library(kknn)
+library(GGally)
+library(Hmisc)
+library(dplyr)
+library(corrplot)
+library(tidyr)
+library(VIM)
+library(mice)
+library(bmrm)
+library(DMwR)
+library(NoiseFiltersR)
+library(beeswarm)
+library(moments)
+library(MASS)
+library(FSelector)
+library(Gmedian)
+
+has.na <- function(x) apply(x,1,function(z)any(is.na(z)))
+indices.nas.train <- which(has.na(train))
+outliers.train.por.la.cara <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+outliers.test.por.la.cara <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+
+```
+
+```{r}
+# Variables más correladas
+cor(train[-c(indices.nas.train, outliers.train.por.la.cara),-ncol(train)]) %>%
+  as.data.frame() %>%
+  mutate(var1 = rownames(.)) %>%
+  gather(var2, value, -var1) %>%
+  arrange(desc(abs(value))) %>%
+  filter(var1 < var2) %>%
+  head(n=10)
+```
+

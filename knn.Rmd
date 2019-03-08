@@ -1242,7 +1242,7 @@ createSubmission(sub.19, "19")
 
 ```{r}
 ## SUBIDA 20
-# Relief + kernel coseno
+# Relief + kernel triangular
 set.seed(28)
 sub.20 <- train.predict.18(train, test, 17, "triangular")
 createSubmission(sub.20, "20")
