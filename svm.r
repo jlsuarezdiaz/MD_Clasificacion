@@ -141,12 +141,12 @@ new_data = preProcessData(data,test.data)
 scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
 scaled.train.knn = computeMissingValues(scaled.train, type = "mean")
-scaled.train.outliers.knn <- computeOutliers(scaled.train.knn[,1:ncol(scaled.train.knn)-1], type='remove')
-scaled.train.outliers.knn$C <- scaled.train.knn$C
+scaled.train.outliers.knn <- computeOutliers(scaled.train.knn, type='remove')
 predictAndSave(scaled.train.outliers.knn,scaled.test,'subs-svm/3.csv')
 
 
 # 4
+print(4)
 new_data = preProcessData(data,test.data)
 scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
@@ -157,6 +157,7 @@ predictAndSave(scaled.train.outliers.knn,scaled.test,'subs-svm/3.csv')
 
 
 # 5
+print(5)
 new_data = preProcessData(data,test.data)
 scaled.train = new_data[[1]]
 scaled.test = new_data[[2]]
