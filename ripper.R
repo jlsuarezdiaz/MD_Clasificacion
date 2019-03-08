@@ -1,36 +1,20 @@
----
-title: "ripper"
-author: "Elena Romero Contreras"
-date: "18 de febrero de 2019"
-output: pdf_document
----
 
-```{r}
-# BIBLIOTECAS
 
 source("preprocesado.r")
+
+# LIBRERÍAS 
 
 library(RWeka)
 library(caret)
 library(DMwR) 
 library(bmrm)
 library(OneR)
-# library(ggplot2)
-# library(RKEEL)
-# library(GGally)
-# library(Hmisc)
-# library(dplyr)
-# library(corrplot)
-# library(tidyr)
-# library(VIM)
-library(mice)
-```
 
-```{r}
+# LECTURA DATOS
+
 train <- read.csv("train.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
 train$C <- as.factor(train$C)
 test <- read.csv("test.csv", na.strings = c("?", "NA", "NR", "na", "NaN", "nan"))
-
 
 # FUNCIONES AUXILIARES
 
@@ -67,457 +51,7 @@ solveUnbalance <- function(data,type='ubOver'){
 
 # Comprueba si hay valores perdidos en cada fila
 has.na <- function(x) apply(x,1,function(z)any(is.na(z)))
-```
 
-```{r}
-#summary(train)
-#summary(test)
-```
-
-```{r}
-# SUBIDA 1
-set.seed(123)
-
-
-funcion.train.predict <- function(train, test){
-  # Train
-  model <- JRip(C ~ ., train)
-  # Predict
-  pred <- predict(model, test)
-  return(pred)
-}
-```
-
-```{r}
-# SUBIDA 2
-set.seed(123)
-
-#Quitamos filas que toman el mismo valor -68000 y algo en muchas de sus variables -> sospechoso
-#La mayoría de estas filas en train tienen etiqueta 0 -> asignamos 0 a filas en test con este valor
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  
-  # Train
-  model <- JRip(C ~ ., train[-outliers.train,])
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 3
-set.seed(123)
-
-
-# Quitamos filas con NAs en train
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  indices.nas.train <- which(has.na(train))
-  
-  # Train
-  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 4
-set.seed(123)
-
-
-# Imputamos NAs en train
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  
-  if(length(outliers.train) > 0){
-    train <- train[-outliers.train,]
-  }
-  # Imputación NAs por media
-  imputed <- mice(train, m=1, method = "mean")
-  train <- complete(imputed)
-  
-  
-  # Train
-  model <- JRip(C ~ ., train)
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 5
-set.seed(123)
-
-
-# Imputamos NAs en train con KNN
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  
-  if(length(outliers.train) > 0){
-    train <- train[-outliers.train,]
-  }
-  # Imputación NAs con kNN
-  train <- knnImputation(train) 
-
-  # Train
-  model <- JRip(C ~ ., train)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-  
-
-# Validación cruzada
-cross_validation(train, funcion.train.predict)
-
-# Predicción test
-sub.prueba <- funcion.train.predict(train, test)
-sub <- createSubmission(sub.prueba, "test5") 
-```
-
-```{r}
-# SUBIDA 6
-set.seed(123)
-
-# Subida 3 + quitamos atributos poco relacionados con la clase (<0.01)
-
-  # Quitamos columnas menos correladas con la clase
- #train$C <- as.numeric(levels(train$C))[train$C]
- #abs(cor(train[-indices.nas.train,])[,ncol(train)])<0.01
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  indices.nas.train <- which(has.na(train))
-
-  train <- train[,-c(41,44,31,48,1)]
-  # Train
-  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
-  print(model)
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-``` 
-
-```{r}
-# SUBIDA 7
-set.seed(123)
-
-# Subida 3 + quitamos atributos poco relacionados con la clase (<0.009)
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  indices.nas.train <- which(has.na(train))
-
-  train <- train[,-c(41,44,31,48)]
-  # Train
-  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
-
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 8
-set.seed(123)
-
-table(train$C)  # Desbalanceada
-
-# Subida 3 + balanceo
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  indices.nas.train <- which(has.na(train))
-  
-  train <- train[-c(outliers.train, indices.nas.train),]
-  balanced <- solveUnbalance(train, type="ubUnder")
-
-  # Train
-  model <- JRip(C ~ ., balanced)
-  #print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-
-# Validación cruzada
-cross_validation(train, funcion.train.predict)
-# Predicción test
-sub.prueba <- funcion.train.predict(train, test)
-sub <- createSubmission(sub.prueba, "test8") 
-```
-
-
-
-```{r}
-# SUBIDA 9
-set.seed(123)
-
-
-# Subida 2 + imputación knn por clases
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  #indices.nas.train <- which(has.na(train))
-  
-  train <- train[-outliers.train,]
-  
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Training
-  model <- JRip(C ~ ., train.completed)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-
-# Validación cruzada
-cross_validation(train, funcion.train.predict)
-# Predicción test
-sub.prueba <- funcion.train.predict(train, test)
-sub <- createSubmission(sub.prueba, "test9") 
-```
-
-
-
-```{r}
-# SUBIDA 10
-set.seed(123)
-
-
-# Subida 9 + EF por consenso
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- EF(train.completed, consensus = T)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-
-```{r}
-# SUBIDA 16
-set.seed(123)
-
-
-# Subida 9 + EF por mayoría
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- EF(train.completed, consensus = F)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-}
-```
-
-```{r}
-# SUBIDA 12
-set.seed(123)
-
-
-# Subida 9 + CVCF por consenso
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- CVCF(train.completed, consensus = T)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 13
-set.seed(123)
-
-
-# Subida 9 + CVCF por mayoría
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-
-
-```{r}
-# SUBIDA 14
-set.seed(123)
-
-
-# Subida 9 + IPF por consenso
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- IPF(train.completed, consensus = T)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-```{r}
-# SUBIDA 15
-set.seed(123)
-
-
-# Subida 9 + IPF por mayoría
-
-funcion.train.predict <- function(train, test){
-  # Preprocesamiento
-  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
-  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
-  train <- train[-outliers.train,]
-  
-  # Imputamos NAs con KNN por clases
-  train.completed.0 <- knnImputation(train[train$C == 0,]) 
-  train.completed.1 <- knnImputation(train[train$C == 1,])
-  train.completed <- rbind(train.completed.0, train.completed.1)
-  
-  # Limpiamos ruido
-  train.cleaned <- IPF(train.completed, consensus = F)$cleanData
-  
-  # Training
-  model <- JRip(C ~ ., train.cleaned)
-  print(model)
-  
-  # Predict
-  pred <- predict(model, test)
-  pred[outliers.test] <- 0
-  return(pred)
-} 
-```
-
-
-
-
-```{r}
 
 cbrt <- function(x) sign(x) * abs(x)^(1/3)
 # Estudio de outliers, simetría y transformaciones a partir de los boxplots, uno a uno.
@@ -668,20 +202,384 @@ attr.transform.add <- function(data){
   
   trans
 }
-```
+
+
+#summary(train)
+#summary(test)
+
+
+set.seed(123) # fijamos semilla
+
+#---- SUBIDA 1 ----
+
+funcion.train.predict.1 <- function(train, test){
+  # Train
+  model <- JRip(C ~ ., train)
+  # Predict
+  pred <- predict(model, test)
+  return(pred)
+}
+
+#---- SUBIDA 2 ----
+
+#Quitamos filas que toman el mismo valor -68000 y algo en muchas de sus variables -> sospechoso
+#La mayoría de estas filas en train tienen etiqueta 0 -> asignamos 0 a filas en test con este valor
+
+funcion.train.predict.2 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  
+  # Train
+  model <- JRip(C ~ ., train[-outliers.train,])
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+#---- SUBIDA 3 ----
+
+# Quitamos filas con NAs en train
+
+funcion.train.predict.3 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  
+  # Train
+  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+#---- SUBIDA 4 ----
+
+# Imputamos NAs en train
+
+funcion.train.predict.4 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  
+  if(length(outliers.train) > 0){
+    train <- train[-outliers.train,]
+  }
+  # Imputación NAs por media
+  imputed <- mice(train, m=1, method = "mean")
+  train <- complete(imputed)
+  
+  
+  # Train
+  model <- JRip(C ~ ., train)
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+#---- SUBIDA 5 ----
+
+# Imputamos NAs en train con KNN
+
+funcion.train.predict.5 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  
+  if(length(outliers.train) > 0){
+    train <- train[-outliers.train,]
+  }
+  # Imputación NAs con kNN
+  train <- knnImputation(train) 
+  
+  # Train
+  model <- JRip(C ~ ., train)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+#---- SUBIDA 6 ----
+
+# Subida 3 + quitamos atributos poco relacionados con la clase (<0.01)
+
+# Quitamos columnas menos correladas con la clase
+#train$C <- as.numeric(levels(train$C))[train$C]
+#abs(cor(train[-indices.nas.train,])[,ncol(train)])<0.01
+
+funcion.train.predict.6 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  
+  train <- train[,-c(41,44,31,48,1)]
+  # Train
+  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
+  print(model)
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+
+#--- SUBIDA 7 ----
+
+# Subida 3 + quitamos atributos poco relacionados con la clase (<0.009)
+
+funcion.train.predict.7 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  
+  train <- train[,-c(41,44,31,48)]
+  # Train
+  model <- JRip(C ~ ., train[-c(outliers.train, indices.nas.train),])
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+#---- SUBIDA 8 ----
+
+table(train$C)  # Desbalanceada
+
+# Subida 3 + balanceo
+
+funcion.train.predict.8 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  indices.nas.train <- which(has.na(train))
+  
+  train <- train[-c(outliers.train, indices.nas.train),]
+  balanced <- solveUnbalance(train, type="ubUnder")
+  
+  # Train
+  model <- JRip(C ~ ., balanced)
+  #print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+}
+
+
+#---- SUBIDA 9 ----
+# Subida 2 + imputación knn por clases
+
+funcion.train.predict.9 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  #indices.nas.train <- which(has.na(train))
+  
+  train <- train[-outliers.train,]
+  
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Training
+  model <- JRip(C ~ ., train.completed)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+#---- SUBIDA 10 ----
+# Subida 9 + EF por consenso
+
+funcion.train.predict.10 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- EF(train.completed, consensus = T)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+#---- SUBIDA 12 ----
+# Subida 9 + CVCF por consenso
+
+funcion.train.predict.12 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- CVCF(train.completed, consensus = T)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+
+#---- SUBIDA 13 ----
+
+# Subida 9 + CVCF por mayoría
+
+funcion.train.predict.13 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- CVCF(train.completed, consensus = F)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+}
+
+
+#---- SUBIDA 14 ----
+# Subida 9 + IPF por consenso
+
+funcion.train.predict.14 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- IPF(train.completed, consensus = T)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
+
+#---- SUBIDA 15 ----
+
+# Subida 9 + IPF por mayoría
+
+funcion.train.predict.15 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- IPF(train.completed, consensus = F)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+} 
 
 
 
 
 
-```{r}
-# SUBIDA 17
-set.seed(123)
+#---- SUBIDA 16 ----
+# Subida 9 + EF por mayoría
+
+funcion.train.predict.16 <- function(train, test){
+  # Preprocesamiento
+  outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
+  outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
+  train <- train[-outliers.train,]
+  
+  # Imputamos NAs con KNN por clases
+  train.completed.0 <- knnImputation(train[train$C == 0,]) 
+  train.completed.1 <- knnImputation(train[train$C == 1,])
+  train.completed <- rbind(train.completed.0, train.completed.1)
+  
+  # Limpiamos ruido
+  train.cleaned <- EF(train.completed, consensus = F)$cleanData
+  
+  # Training
+  model <- JRip(C ~ ., train.cleaned)
+  print(model)
+  
+  # Predict
+  pred <- predict(model, test)
+  pred[outliers.test] <- 0
+  return(pred)
+}
 
 
+#---- SUBIDA 17 ----
 # Subida 16 + transformaciones
 
-funcion.train.predict <- function(train, test){
+funcion.train.predict.17 <- function(train, test){
   # Preprocesamiento
   outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
   outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
@@ -709,16 +607,12 @@ funcion.train.predict <- function(train, test){
   pred[outliers.test] <- 0
   return(pred)
 }
-```
-
-```{r}
-# SUBIDA 18
-set.seed(123)
 
 
+#---- SUBIDA 18 ----
 # Subida 16 + transformaciones con escalado
 
-funcion.train.predict <- function(train, test){
+funcion.train.predict.18 <- function(train, test){
   # Preprocesamiento
   outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
   outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
@@ -749,22 +643,17 @@ funcion.train.predict <- function(train, test){
   pred[outliers.test] <- 0
   return(pred)
 }
-```
 
 
-```{r}
-# SUBIDA 19
-set.seed(123)
-
-
+#---- SUBIDA 19 ----
 # Primero filtro ruido CVCF por mayoría y después KNN imputación por clases
 
-funcion.train.predict <- function(train, test){
+funcion.train.predict.19 <- function(train, test){
   # Preprocesamiento
   outliers.train <- which(apply(train[,-ncol(train)], MARGIN=1, function(x) any(!is.na(x) & x < -68000)))
   outliers.test <- which(apply(test, MARGIN=1, function(x) any(!is.na(x) && x < -68000)))
   train <- train[-outliers.train,]
-
+  
   # Limpiamos ruido
   train.cleaned <- CVCF(train, consensus = F)$cleanData
   
@@ -784,9 +673,17 @@ funcion.train.predict <- function(train, test){
   return(pred)
 }
 
-sub <- funcion.train.predict(train, test)
-createSubmission(sub, "test19")
-```
+sub <- funcion.train.predict.16(train, test)
+createSubmission(sub, "test")
+
+
+
+
+
+
+
+
+
 
 
 
